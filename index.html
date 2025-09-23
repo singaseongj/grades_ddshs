@@ -97,6 +97,7 @@
   <script>
     const SUBJECTS = ['공통국어','공통수학','공통영어','한국사','통합사회','통합과학'];
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
+    const STORAGE_KEY = 'grades:studentDataset';
     const EXAM_STEPS = [
       { key: 'semester1', label: '1회' },
       { key: 'semester2', label: '2회' },
@@ -152,6 +153,7 @@
       gradeRankings = createEmptyRankings();
       examTotalRankings = createEmptyExamRankings();
       dataLoaded = false;
+      clearStoredDataset();
       disableUIAfterReset();
       alert('모든 데이터가 초기화되었습니다.');
     }
@@ -384,6 +386,7 @@
 
           studentData = newData;
           dataLoaded = true;
+          persistStudentDataset(studentData);
           recalculateGradeRankings();
           enableUIAfterLoad();
           alert('엑셀 데이터가 성공적으로 업로드되었습니다.');
@@ -414,9 +417,48 @@
       document.getElementById('studentName').placeholder = '이름을 입력하세요';
     }
 
+    function loadStoredDataset() {
+      if (typeof localStorage === 'undefined') return null;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+      } catch (err) {
+        console.error('저장된 학생 데이터를 불러오는 중 문제가 발생했습니다.', err);
+        return null;
+      }
+    }
+
+    function persistStudentDataset(dataset) {
+      if (typeof localStorage === 'undefined') return;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataset));
+      } catch (err) {
+        console.error('학생 데이터를 저장하는 중 문제가 발생했습니다.', err);
+      }
+    }
+
+    function clearStoredDataset() {
+      if (typeof localStorage === 'undefined') return;
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (err) {
+        console.error('저장된 학생 데이터를 삭제하는 중 문제가 발생했습니다.', err);
+      }
+    }
+
     function toNum(v) {
       const n = Number(v);
       return isNaN(n) ? '' : n;
+    }
+
+    const storedDataset = loadStoredDataset();
+    if (storedDataset && Object.keys(storedDataset).length > 0) {
+      studentData = storedDataset;
+      dataLoaded = true;
+      recalculateGradeRankings();
+      enableUIAfterLoad();
     }
 
     function searchStudent() {
