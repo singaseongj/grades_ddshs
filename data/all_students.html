@@ -61,6 +61,28 @@
     .grade-cell { font-weight: 600; color: #0d47a1; }
     .grade-cell span { display: block; font-size: 12px; color: #5f6368; font-weight: 400; }
 
+    .analysis-table th {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .analysis-table th .align-button {
+      margin-left: auto;
+      padding: 4px 8px;
+      font-size: 12px;
+      border: 1px solid #1a73e8;
+      background: #fff;
+      color: #1a73e8;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .analysis-table th .align-button:hover {
+      background-color: #e8f0fe;
+    }
+
     @media (max-width: 768px) {
       .summary-item { flex: 1 1 100%; }
       table { font-size: 14px; }
@@ -91,6 +113,50 @@
     const SUBJECTS = ['공통국어','공통수학','공통영어','한국사','통합사회','통합과학'];
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const STORAGE_KEY = 'grades:studentDataset';
+    let currentStudents = [];
+
+    const SORT_HANDLERS = {
+      overallRank: (a, b) => {
+        const result = compareNumericAsc(a.overallRank, b.overallRank);
+        if (result !== 0) return result;
+        return a.name.localeCompare(b.name, 'ko');
+      },
+      name: (a, b) => {
+        const result = compareStringAsc(a.name, b.name);
+        if (result !== 0) return result;
+        return compareStringAsc(a.studentId, b.studentId);
+      },
+      studentId: (a, b) => {
+        const result = compareStringAsc(a.studentId, b.studentId);
+        if (result !== 0) return result;
+        return a.name.localeCompare(b.name, 'ko');
+      },
+      sum: (a, b) => {
+        const result = compareNumericAsc(a.sum, b.sum);
+        if (result !== 0) return result;
+        return a.name.localeCompare(b.name, 'ko');
+      },
+      average: (a, b) => {
+        const result = compareNumericAsc(a.average, b.average);
+        if (result !== 0) return result;
+        return a.name.localeCompare(b.name, 'ko');
+      },
+      averageGrade: (a, b) => {
+        const result = compareNumericAsc(a.averageGradeValue, b.averageGradeValue);
+        if (result !== 0) return result;
+        return a.name.localeCompare(b.name, 'ko');
+      }
+    };
+
+    SUBJECTS.forEach((_, index) => {
+      SORT_HANDLERS[`subject-${index}`] = (a, b) => {
+        const scoreCompare = compareNumericAsc(a.subjectAverages[index], b.subjectAverages[index]);
+        if (scoreCompare !== 0) return scoreCompare;
+        const gradeCompare = compareNumericAsc(extractGradeValue(a.subjectGrades[index]), extractGradeValue(b.subjectGrades[index]));
+        if (gradeCompare !== 0) return gradeCompare;
+        return a.name.localeCompare(b.name, 'ko');
+      };
+    });
 
     function loadStudentDataset() {
       if (typeof localStorage === 'undefined') return null;
@@ -111,6 +177,32 @@
         minimumFractionDigits: digits,
         maximumFractionDigits: digits
       });
+    }
+
+    function formatScoreDisplay(value) {
+      if (!Number.isFinite(value)) return '-';
+      const hasDecimal = Math.abs(value - Math.round(value)) > 1e-6;
+      return formatNumber(value, hasDecimal ? 1 : 0);
+    }
+
+    function compareNumericAsc(rawA, rawB) {
+      const a = Number.isFinite(rawA) ? rawA : Infinity;
+      const b = Number.isFinite(rawB) ? rawB : Infinity;
+      if (a < b) return -1;
+      if (a > b) return 1;
+      return 0;
+    }
+
+    function compareStringAsc(rawA, rawB) {
+      const a = rawA ?? '';
+      const b = rawB ?? '';
+      return String(a).localeCompare(String(b), 'ko');
+    }
+
+    function extractGradeValue(gradeText) {
+      if (typeof gradeText !== 'string') return null;
+      const match = gradeText.match(/(\d+)/);
+      return match ? Number(match[1]) : null;
     }
 
     function calculateSubjectAverage(student, index) {
@@ -141,6 +233,8 @@
           subjectGrades: Array(SUBJECTS.length).fill('-'),
           sum: totalScore,
           average: averageScore,
+          averageGradeValue: null,
+          averageGradeText: '-',
           overallRank: 0
         };
       });
@@ -219,19 +313,64 @@
       });
     }
 
+    function assignAverageGrades(students) {
+      students.forEach(student => {
+        const gradeValues = student.subjectGrades
+          .map(extractGradeValue)
+          .filter(value => Number.isFinite(value));
+        if (!gradeValues.length) {
+          student.averageGradeValue = null;
+          student.averageGradeText = '-';
+          return;
+        }
+        const total = gradeValues.reduce((sum, value) => sum + value, 0);
+        const averageGrade = total / gradeValues.length;
+        student.averageGradeValue = averageGrade;
+        student.averageGradeText = `${formatNumber(averageGrade, 1)}등급`;
+      });
+    }
+
+    function createHeaderCell(label, sortKey) {
+      const th = document.createElement('th');
+      const labelSpan = document.createElement('span');
+      labelSpan.textContent = label;
+      th.appendChild(labelSpan);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'align-button';
+      button.textContent = 'A→Z';
+      button.title = `${label} 정렬`;
+      button.setAttribute('aria-label', `${label} 정렬`);
+      button.addEventListener('click', () => sortStudents(sortKey));
+      th.appendChild(button);
+      return th;
+    }
+
+    function sortStudents(sortKey) {
+      if (!Array.isArray(currentStudents) || currentStudents.length === 0) return;
+      const comparator = SORT_HANDLERS[sortKey];
+      if (typeof comparator !== 'function') return;
+      currentStudents.sort(comparator);
+      renderTableRows(currentStudents);
+    }
+
     function buildTableHeader() {
       const head = document.getElementById('analysisHead');
       head.innerHTML = '';
       const row = document.createElement('tr');
-      const baseHeaders = ['전체 등수','이름','학번','합계','평균'];
-      baseHeaders.forEach(text => {
-        const th = document.createElement('th');
-        th.textContent = text;
-        row.appendChild(th);
+      const baseHeaders = [
+        { label: '전체 등수', sortKey: 'overallRank' },
+        { label: '이름', sortKey: 'name' },
+        { label: '학번', sortKey: 'studentId' },
+        { label: '합계', sortKey: 'sum' },
+        { label: '평균', sortKey: 'average' },
+        { label: '등급 평균', sortKey: 'averageGrade' }
+      ];
+      baseHeaders.forEach(({ label, sortKey }) => {
+        row.appendChild(createHeaderCell(label, sortKey));
       });
-      SUBJECTS.forEach(subject => {
-        const th = document.createElement('th');
-        th.textContent = `${subject} 등급`;
+      SUBJECTS.forEach((subject, index) => {
+        const th = createHeaderCell(`${subject} / 등급`, `subject-${index}`);
         row.appendChild(th);
       });
       head.appendChild(row);
@@ -240,8 +379,7 @@
     function renderTableRows(students) {
       const body = document.getElementById('analysisBody');
       body.innerHTML = '';
-      const ordered = [...students].sort((a, b) => a.overallRank - b.overallRank || a.name.localeCompare(b.name, 'ko'));
-      ordered.forEach(student => {
+      students.forEach(student => {
         const row = document.createElement('tr');
 
         const rankCell = document.createElement('td');
@@ -264,11 +402,18 @@
         avgCell.textContent = formatNumber(student.average, 2);
         row.appendChild(avgCell);
 
+        const avgGradeCell = document.createElement('td');
+        avgGradeCell.classList.add('grade-cell');
+        avgGradeCell.textContent = student.averageGradeText ?? '-';
+        row.appendChild(avgGradeCell);
+
         student.subjectGrades.forEach((grade, index) => {
           const td = document.createElement('td');
           td.classList.add('grade-cell');
-          td.textContent = grade;
           const averageScore = student.subjectAverages[index];
+          const scoreText = formatScoreDisplay(averageScore);
+          const gradeText = grade && grade !== '-' ? grade : '-';
+          td.textContent = `${scoreText} / ${gradeText}`;
           if (Number.isFinite(averageScore)) {
             td.title = `${SUBJECTS[index]} 평균: ${formatNumber(averageScore, 1)}점`;
           }
@@ -326,10 +471,12 @@
       }
 
       assignSubjectGrades(students);
+      assignAverageGrades(students);
       assignOverallRanks(students);
       buildTableHeader();
       renderSummary(students);
-      renderTableRows(students);
+      currentStudents = [...students];
+      sortStudents('overallRank');
 
       emptyState.hidden = true;
       analysisContent.hidden = false;
