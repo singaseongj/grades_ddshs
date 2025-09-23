@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>등급 배정 계산기</title>
+  <style>
+    :root {
+      color-scheme: light;
+    }
+    body {
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+      margin: 0;
+      background: #f5f5f5;
+      color: #333;
+    }
+    .page-wrapper {
+      max-width: 900px;
+      margin: 40px auto;
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+    }
+    h1 {
+      margin-top: 0;
+      text-align: center;
+      font-size: 2rem;
+      color: #1b5e20;
+    }
+    .description {
+      text-align: center;
+      margin-bottom: 24px;
+      color: #555;
+      line-height: 1.5;
+    }
+    .input-section {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      align-items: center;
+    }
+    .input-section label {
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+    .input-section input[type="number"] {
+      width: 160px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 2px solid #c5e1a5;
+      font-size: 1.05rem;
+      text-align: center;
+      transition: border-color 0.2s ease;
+      background: #fff;
+    }
+    .input-section input[type="number"]:focus {
+      outline: none;
+      border-color: #66bb6a;
+      box-shadow: 0 0 0 3px rgba(102, 187, 106, 0.25);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    thead th {
+      background: #2e7d32;
+      color: #ffffff;
+      padding: 14px 10px;
+      font-size: 1rem;
+      border-right: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    thead th:last-child {
+      border-right: none;
+    }
+    tbody td {
+      padding: 12px 10px;
+      text-align: center;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-right: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    tbody td:last-child {
+      border-right: none;
+    }
+    tr.grade-1 { background: #ff8a80; }
+    tr.grade-2 { background: #ffe082; }
+    tr.grade-3 { background: #c5e1a5; }
+    tr.grade-4 { background: #fff59d; }
+    tr.grade-5 { background: #ffab91; }
+    tr.total-row td {
+      background: #2e7d32;
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 1rem;
+    }
+    .note {
+      margin-top: 18px;
+      color: #6d6d6d;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    @media (max-width: 640px) {
+      .page-wrapper {
+        margin: 20px;
+        padding: 24px 18px;
+      }
+      table {
+        font-size: 0.9rem;
+      }
+      thead th, tbody td {
+        padding: 10px 6px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrapper">
+    <h1>등급 배정 계산기</h1>
+    <p class="description">
+      총 학생 수(총원)를 입력하면 등급별 배정 인원, 누적인원, 등수 범위를 자동으로 계산합니다.
+    </p>
+    <div class="input-section">
+      <label for="totalStudents">총원</label>
+      <input type="number" id="totalStudents" min="0" placeholder="예: 82" value="82" />
+    </div>
+    <table id="gradeTable">
+      <thead>
+        <tr>
+          <th>등급입원</th>
+          <th>등급비율</th>
+          <th>누적인원</th>
+          <th>배정인원</th>
+          <th>비고</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="grade-1">
+          <td>1등급</td>
+          <td class="percent"></td>
+          <td class="cumulative"></td>
+          <td class="assigned"></td>
+          <td class="range"></td>
+        </tr>
+        <tr class="grade-2">
+          <td>2등급</td>
+          <td class="percent"></td>
+          <td class="cumulative"></td>
+          <td class="assigned"></td>
+          <td class="range"></td>
+        </tr>
+        <tr class="grade-3">
+          <td>3등급</td>
+          <td class="percent"></td>
+          <td class="cumulative"></td>
+          <td class="assigned"></td>
+          <td class="range"></td>
+        </tr>
+        <tr class="grade-4">
+          <td>4등급</td>
+          <td class="percent"></td>
+          <td class="cumulative"></td>
+          <td class="assigned"></td>
+          <td class="range"></td>
+        </tr>
+        <tr class="grade-5">
+          <td>5등급</td>
+          <td class="percent"></td>
+          <td class="cumulative"></td>
+          <td class="assigned"></td>
+          <td class="range"></td>
+        </tr>
+        <tr class="total-row">
+          <td colspan="3">총원</td>
+          <td id="totalAssigned" colspan="2"></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note">
+      ※ 등급비율은 1등급부터 5등급까지 각각 10%, 24%, 32%, 24%, 10%로 고정되어 있으며, 배정 인원은 소수 둘째 자리까지 표기합니다.<br />
+      ※ 누적인원과 등수 범위는 소수점을 반올림하여 산출한 값으로, 실제 운영 시 학년·학교 정책에 따라 조정할 수 있습니다.
+    </p>
+  </div>
+  <script>
+    const gradeConfig = [
+      { percent: 10 },
+      { percent: 24 },
+      { percent: 32 },
+      { percent: 24 },
+      { percent: 10 }
+    ];
+
+    const tableRows = Array.from(document.querySelectorAll('#gradeTable tbody tr')).slice(0, 5);
+    const totalAssignedCell = document.getElementById('totalAssigned');
+    const totalInput = document.getElementById('totalStudents');
+
+    function formatNumber(value, digits = 0) {
+      return value.toLocaleString('ko-KR', {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+      });
+    }
+
+    function updateTable() {
+      const total = Number(totalInput.value);
+      const isValidTotal = Number.isFinite(total) && total > 0;
+      let runningSum = 0;
+      let previousCumulative = 0;
+
+      tableRows.forEach((row, index) => {
+        const percent = gradeConfig[index].percent;
+        const percentCell = row.querySelector('.percent');
+        const cumulativeCell = row.querySelector('.cumulative');
+        const assignedCell = row.querySelector('.assigned');
+        const rangeCell = row.querySelector('.range');
+
+        percentCell.textContent = `${percent}%`;
+
+        if (!isValidTotal) {
+          cumulativeCell.textContent = '-';
+          assignedCell.textContent = '-';
+          rangeCell.textContent = '-';
+          return;
+        }
+
+        const assigned = total * (percent / 100);
+        runningSum += assigned;
+        const cumulative = Math.round(runningSum);
+        const startRank = index === 0 ? 1 : previousCumulative + 1;
+        const endRank = cumulative;
+
+        cumulativeCell.textContent = formatNumber(cumulative);
+        assignedCell.textContent = assigned.toFixed(2);
+        rangeCell.textContent = startRank <= endRank ? `${formatNumber(startRank)} ~ ${formatNumber(endRank)} 등 까지` : '-';
+
+        previousCumulative = cumulative;
+      });
+
+      totalAssignedCell.textContent = isValidTotal
+        ? `${formatNumber(total)}명`
+        : '총원을 입력하세요.';
+    }
+
+    totalInput.addEventListener('input', updateTable);
+    updateTable();
+  </script>
+</body>
+</html>
