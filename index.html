@@ -74,40 +74,28 @@
         <thead>
           <tr>
             <th>고사 성적</th>
-            <th>공통국어</th>
-            <th>공통수학</th>
-            <th>공통영어</th>
-            <th>한국사</th>
-            <th>통합사회</th>
-            <th>통합과학</th>
+            <th>공통국어 (등수) / 등급</th>
+            <th>공통수학 (등수) / 등급</th>
+            <th>공통영어 (등수) / 등급</th>
+            <th>한국사 (등수) / 등급</th>
+            <th>통합사회 (등수) / 등급</th>
+            <th>통합과학 (등수) / 등급</th>
             <th>평균</th>
           </tr>
         </thead>
         <tbody id="scoresBody"></tbody>
       </table>
     </div>
-
-    <div class="add-semester-section">
-      <h3>➕ 3회 고사 성적 추가</h3>
-      <div class="search-box">
-        <label>학생 이름:</label>
-        <input type="text" id="addStudentName" placeholder="엑셀 업로드 후 사용 가능" disabled />
-      </div>
-      <div class="input-row">
-        <input type="number" id="addKorean" placeholder="공통국어" min="0" max="100" disabled />
-        <input type="number" id="addMath" placeholder="공통수학" min="0" max="100" disabled />
-        <input type="number" id="addEnglish" placeholder="공통영어" min="0" max="100" disabled />
-        <input type="number" id="addHistory" placeholder="한국사" min="0" max="100" disabled />
-        <input type="number" id="addSocial" placeholder="통합사회" min="0" max="100" disabled />
-        <input type="number" id="addScience" placeholder="통합과학" min="0" max="100" disabled />
-      </div>
-      <button id="btnAdd" onclick="addThirdSemester()" disabled>3회 고사 성적 추가</button>
-      <div class="hint">업로드 후에 입력이 활성화됩니다.</div>
-    </div>
   </div>
 
   <script>
     const SUBJECTS = ['공통국어','공통수학','공통영어','한국사','통합사회','통합과학'];
+    const GRADE_CONFIG = [10, 24, 32, 24, 10];
+    const EXAM_STEPS = [
+      { key: 'semester1', label: '1회' },
+      { key: 'semester2', label: '2회' },
+      { key: 'semester3', label: '3회' }
+    ];
     const STORAGE_KEY = 'grades:studentDataset';
 
     document.getElementById('btnTemplate').addEventListener('click', downloadTemplate);
@@ -151,18 +139,6 @@
       document.getElementById('btnClear').disabled = true;
       document.getElementById('btnDownload').disabled = true;
 
-      const addIds = ['addStudentName','addKorean','addMath','addEnglish','addHistory','addSocial','addScience'];
-      addIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.value = '';
-        el.disabled = true;
-        if (id === 'addStudentName') {
-          el.placeholder = '엑셀 업로드 후 사용 가능';
-        }
-      });
-      document.getElementById('btnAdd').disabled = true;
-
       const info = document.getElementById('studentInfo');
       info.classList.remove('active');
       document.getElementById('displayName').textContent = '';
@@ -188,6 +164,7 @@
       });
       charts = {};
       studentData = {};
+      gradeRankings = createEmptyRankings();
       dataLoaded = false;
       disableUIAfterReset();
       clearPersistedStudentData();
@@ -198,6 +175,97 @@
     let studentData = {};
     let dataLoaded = false;
     let charts = {};
+    let gradeRankings = createEmptyRankings();
+
+    function createEmptyRankings() {
+      const result = {};
+      EXAM_STEPS.forEach(({ key }) => {
+        result[key] = SUBJECTS.map(() => new Map());
+      });
+      return result;
+    }
+
+    function computeGradeSlices(totalCount) {
+      if (!Number.isFinite(totalCount) || totalCount <= 0) return [];
+      const slices = [];
+      let cumulativeEstimate = 0;
+      let previousEnd = 0;
+
+      GRADE_CONFIG.forEach((percent, index) => {
+        cumulativeEstimate += totalCount * (percent / 100);
+        let endRank = Math.round(cumulativeEstimate);
+        if (index === GRADE_CONFIG.length - 1) {
+          endRank = totalCount;
+        } else {
+          endRank = Math.min(Math.max(endRank, previousEnd), totalCount);
+        }
+        const startRank = previousEnd + 1;
+        const adjustedEnd = Math.max(endRank, startRank - 1);
+        slices.push({ grade: index + 1, startRank, endRank: adjustedEnd });
+        previousEnd = adjustedEnd;
+      });
+
+      const lastSlice = slices[slices.length - 1];
+      if (lastSlice && lastSlice.endRank < totalCount) {
+        lastSlice.endRank = totalCount;
+      }
+
+      return slices;
+    }
+
+    function recalculateGradeRankings() {
+      gradeRankings = createEmptyRankings();
+
+      EXAM_STEPS.forEach(({ key }) => {
+        SUBJECTS.forEach((_, subjectIndex) => {
+          const rankingMap = gradeRankings[key][subjectIndex];
+          const entries = [];
+
+          Object.entries(studentData).forEach(([name, info]) => {
+            const termScores = info?.[key];
+            if (!Array.isArray(termScores) || termScores.length <= subjectIndex) return;
+            const score = Number(termScores[subjectIndex]);
+            if (!Number.isFinite(score)) return;
+            entries.push({ name, score });
+          });
+
+          if (!entries.length) return;
+
+          entries.sort((a, b) => b.score - a.score);
+          const gradeSlices = computeGradeSlices(entries.length);
+          let previousScore = null;
+          let previousRank = 0;
+          let previousGrade = null;
+
+          entries.forEach((entry, index) => {
+            const isTie = previousScore !== null && Math.abs(previousScore - entry.score) < 1e-6;
+            const rank = isTie ? previousRank : index + 1;
+            const slice = gradeSlices.find(range => rank >= range.startRank && rank <= range.endRank) || gradeSlices[gradeSlices.length - 1];
+            const gradeValue = slice ? slice.grade : null;
+            const finalGrade = isTie && previousGrade !== null ? previousGrade : gradeValue;
+            rankingMap.set(entry.name, { rank, grade: finalGrade });
+            if (!isTie) {
+              previousScore = entry.score;
+              previousRank = rank;
+              previousGrade = finalGrade;
+            }
+          });
+        });
+      });
+    }
+
+    function hasValidScoreForSubject(student, examKey, subjectIndex) {
+      const term = student?.[examKey];
+      if (!Array.isArray(term) || term.length <= subjectIndex) return false;
+      const value = Number(term[subjectIndex]);
+      return Number.isFinite(value);
+    }
+
+    function getRankingInfo(examKey, subjectIndex, name) {
+      const subjectRankings = gradeRankings?.[examKey]?.[subjectIndex];
+      if (!subjectRankings) return null;
+      return subjectRankings.get(name) ?? null;
+    }
 
     // === XLSX Export ===
     function downloadTemplate(evt) {
@@ -314,6 +382,7 @@
 
           studentData = newData;
           dataLoaded = true;
+          recalculateGradeRankings();
           enableUIAfterLoad();
           persistStudentData();
           alert('엑셀 데이터가 성공적으로 업로드되었습니다.');
@@ -340,22 +409,11 @@
       document.getElementById('btnSearch').disabled = false;
       document.getElementById('btnClear').disabled = false;
 
-      // 추가 입력
-      document.getElementById('addStudentName').disabled = false;
-      document.getElementById('addKorean').disabled = false;
-      document.getElementById('addMath').disabled = false;
-      document.getElementById('addEnglish').disabled = false;
-      document.getElementById('addHistory').disabled = false;
-      document.getElementById('addSocial').disabled = false;
-      document.getElementById('addScience').disabled = false;
-      document.getElementById('btnAdd').disabled = false;
-
       // 다운로드
       document.getElementById('btnDownload').disabled = false;
 
       // 힌트 변경
       document.getElementById('studentName').placeholder = '이름을 입력하세요';
-      document.getElementById('addStudentName').placeholder = '이름 입력';
     }
 
     function toNum(v) {
@@ -394,33 +452,63 @@
 
     function createCharts(name, student) {
       const chartIds = ['koreanChart','mathChart','englishChart','historyChart','socialChart','scienceChart'];
-      const labels = ['1회','2회']; if (student.semester3.length > 0) labels.push('3회');
 
-      chartIds.forEach((chartId, index) => {
+      chartIds.forEach((chartId, subjectIndex) => {
         if (charts[chartId]) charts[chartId].destroy();
         const ctx = document.getElementById(chartId).getContext('2d');
-        const data = [student.semester1?.[index] ?? 0, student.semester2?.[index] ?? 0];
-        if (student.semester3.length > 0) data.push(student.semester3?.[index] ?? 0);
+
+        const labels = [];
+        const data = [];
+        EXAM_STEPS.forEach(({ key, label }) => {
+          if (!hasValidScoreForSubject(student, key, subjectIndex)) return;
+          labels.push(label);
+          const rankingInfo = getRankingInfo(key, subjectIndex, name);
+          const gradeValue = rankingInfo?.grade;
+          data.push(Number.isFinite(gradeValue) ? gradeValue : null);
+        });
 
         charts[chartId] = new Chart(ctx, {
           type: 'line',
           data: {
             labels,
             datasets: [{
-              label: SUBJECTS[index],
+              label: `${SUBJECTS[subjectIndex]} 등급`,
               data,
-              borderColor: getChartColor(index),
-              backgroundColor: getChartColor(index, 0.2),
-              borderWidth: 2, tension: 0.1, pointRadius: 5, pointHoverRadius: 7
+              borderColor: getChartColor(subjectIndex),
+              backgroundColor: getChartColor(subjectIndex, 0.2),
+              borderWidth: 2,
+              tension: 0.1,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              spanGaps: true
             }]
           },
           options: {
-            responsive: true, maintainAspectRatio: true,
-            plugins: { legend: { display: false }, tooltip: {
-              callbacks: { label: (c) => `${c.parsed.y.toFixed(1)}점` }
-            }},
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (context) => {
+                    const grade = context.parsed.y;
+                    if (!Number.isFinite(grade)) return '등급 정보 없음';
+                    return `${grade}등급`;
+                  }
+                }
+              }
+            },
             scales: {
-              y: { beginAtZero: true, max: 100, ticks: { stepSize: 20 }, title: { display: true, text: '점수' } },
+              y: {
+                min: 1,
+                max: 5,
+                reverse: true,
+                ticks: {
+                  stepSize: 1,
+                  callback: (value) => `${value}등급`
+                },
+                title: { display: true, text: '등급' }
+              },
               x: { title: { display: true, text: '고사 차시' } }
             }
           }
@@ -444,55 +532,36 @@
       const tbody = document.getElementById('scoresBody');
       tbody.innerHTML = '';
 
-      const row1 = tbody.insertRow();
-      row1.insertCell(0).textContent = '1회';
-      (student.semester1 || []).forEach(s => row1.insertCell().textContent = Number(s).toFixed(1));
-      row1.insertCell().textContent = ((student.semester1 || []).reduce((a,b)=>a+Number(b||0),0)/SUBJECTS.length).toFixed(1);
+      EXAM_STEPS.forEach(({ key, label }) => {
+        const termScores = student?.[key];
+        if (!Array.isArray(termScores) || termScores.length === 0) return;
 
-      const row2 = tbody.insertRow();
-      row2.insertCell(0).textContent = '2회';
-      (student.semester2 || []).forEach(s => row2.insertCell().textContent = Number(s).toFixed(1));
-      row2.insertCell().textContent = ((student.semester2 || []).reduce((a,b)=>a+Number(b||0),0)/SUBJECTS.length).toFixed(1);
+        const hasAnyValid = SUBJECTS.some((_, subjectIndex) => hasValidScoreForSubject(student, key, subjectIndex));
+        if (!hasAnyValid) return;
 
-      if ((student.semester3 || []).length > 0) {
-        const row3 = tbody.insertRow();
-        row3.insertCell(0).textContent = '3회';
-        student.semester3.forEach(s => row3.insertCell().textContent = Number(s).toFixed(1));
-        row3.insertCell().textContent = ((student.semester3 || []).reduce((a,b)=>a+Number(b||0),0)/SUBJECTS.length).toFixed(1);
-      }
-    }
+        const row = tbody.insertRow();
+        row.insertCell(0).textContent = label;
 
-    function addThirdSemester() {
-      if (!dataLoaded) { alert('먼저 데이터를 업로드하세요.'); return; }
+        let total = 0;
+        let count = 0;
 
-      const name = document.getElementById('addStudentName').value.trim();
-      if (!name || !studentData[name]) { alert('유효한 학생 이름을 입력해주세요.'); return; }
+        SUBJECTS.forEach((_, subjectIndex) => {
+          const score = Number(termScores[subjectIndex]);
+          if (Number.isFinite(score)) {
+            total += score;
+            count += 1;
+          }
+          const rankingInfo = getRankingInfo(key, subjectIndex, name) || {};
+          const rankValue = Number.isFinite(rankingInfo.rank) ? rankingInfo.rank : '-';
+          const gradeValue = Number.isFinite(rankingInfo.grade) ? rankingInfo.grade : '-';
+          const scoreText = Number.isFinite(score) ? score.toFixed(1) : '-';
+          const cell = row.insertCell();
+          cell.textContent = `${scoreText} (${rankValue}) / ${gradeValue}`;
+        });
 
-      const scores = [
-        parseFloat(document.getElementById('addKorean').value),
-        parseFloat(document.getElementById('addMath').value),
-        parseFloat(document.getElementById('addEnglish').value),
-        parseFloat(document.getElementById('addHistory').value),
-        parseFloat(document.getElementById('addSocial').value),
-        parseFloat(document.getElementById('addScience').value)
-      ];
-
-      if (scores.some(s => isNaN(s))) { alert('모든 과목의 점수를 입력해주세요.'); return; }
-
-      studentData[name].semester3 = scores;
-      persistStudentData();
-      alert(`${name} 학생의 3회 고사 성적이 추가되었습니다.`);
-
-      document.getElementById('addStudentName').value = '';
-      document.getElementById('addKorean').value = '';
-      document.getElementById('addMath').value = '';
-      document.getElementById('addEnglish').value = '';
-      document.getElementById('addHistory').value = '';
-      document.getElementById('addSocial').value = '';
-      document.getElementById('addScience').value = '';
-
-      const currentSearchName = document.getElementById('studentName').value.trim();
-      if (currentSearchName === name) searchStudent();
+        const average = count > 0 ? (total / count).toFixed(1) : '-';
+        row.insertCell().textContent = average;
+      });
     }
 
     // Enter로 검색
