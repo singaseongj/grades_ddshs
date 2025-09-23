@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>학생 성적 추이 분석</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- SheetJS (XLSX) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>📊 학생별 성적 추이 분석 시스템</h1>
+
+    <div class="search-section">
+      <div class="search-box">
+        <label for="studentName">학생 이름:</label>
+        <input type="text" id="studentName" placeholder="엑셀 업로드 후 사용 가능" disabled />
+        <button id="btnSearch" onclick="searchStudent()" disabled>검색</button>
+        <button id="btnClear" onclick="clearSearch()" disabled>초기화</button>
+      </div>
+
+      <!-- 업로드 / 다운로드 -->
+      <div class="io-section">
+        <label for="xlsxInput" class="button-like" id="btnUpload">업로드 (.xlsx)</label>
+        <input type="file" id="xlsxInput" accept=".xlsx,.xls" onchange="uploadXLSX(event)" />
+        <button id="btnDownload" onclick="downloadXLSX()" disabled>다운로드 (.xlsx)</button>
+        <a href="#" id="btnTemplate" class="template-link">양식 다운로드</a>
+      </div>
+      <div class="hint">먼저 .xlsx 파일을 업로드하세요. (다운로드 버튼은 데이터가 로드되면 활성화됩니다)</div>
+
+      <div class="error-message" id="errorMessage"></div>
+      <div class="student-info" id="studentInfo">
+        <div class="info-row">
+          <div class="info-item">
+            <span class="info-label">이름:</span>
+            <span id="displayName"></span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">번호:</span>
+            <span id="displayNumber"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="charts-section" id="chartsSection" style="display:none;">
+      <div class="chart-container">
+        <div class="chart-title">공통국어 성적 추이</div><canvas id="koreanChart"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">공통수학 성적 추이</div><canvas id="mathChart"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">공통영어 성적 추이</div><canvas id="englishChart"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">한국사 성적 추이</div><canvas id="historyChart"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">통합사회 성적 추이</div><canvas id="socialChart"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">통합과학 성적 추이</div><canvas id="scienceChart"></canvas>
+      </div>
+    </div>
+
+    <div class="data-table" id="dataTable">
+      <h3>📋 상세 성적 데이터</h3>
+      <table id="scoresTable">
+        <thead>
+          <tr>
+            <th>고사 성적</th>
+            <th>공통국어</th>
+            <th>공통수학</th>
+            <th>공통영어</th>
+            <th>한국사</th>
+            <th>통합사회</th>
+            <th>통합과학</th>
+            <th>평균</th>
+          </tr>
+        </thead>
+        <tbody id="scoresBody"></tbody>
+      </table>
+    </div>
+
+    <div class="add-semester-section">
+      <h3>➕ 3회 고사 성적 추가</h3>
+      <div class="search-box">
+        <label>학생 이름:</label>
+        <input type="text" id="addStudentName" placeholder="엑셀 업로드 후 사용 가능" disabled />
+      </div>
+      <div class="input-row">
+        <input type="number" id="addKorean" placeholder="공통국어" min="0" max="100" disabled />
+        <input type="number" id="addMath" placeholder="공통수학" min="0" max="100" disabled />
+        <input type="number" id="addEnglish" placeholder="공통영어" min="0" max="100" disabled />
+        <input type="number" id="addHistory" placeholder="한국사" min="0" max="100" disabled />
+        <input type="number" id="addSocial" placeholder="통합사회" min="0" max="100" disabled />
+        <input type="number" id="addScience" placeholder="통합과학" min="0" max="100" disabled />
+      </div>
+      <button id="btnAdd" onclick="addThirdSemester()" disabled>3회 고사 성적 추가</button>
+      <div class="hint">업로드 후에 입력이 활성화됩니다.</div>
+    </div>
+  </div>
+
+  <script>
+    const SUBJECTS = ['공통국어','공통수학','공통영어','한국사','통합사회','통합과학'];
+
+    document.getElementById('btnTemplate').addEventListener('click', downloadTemplate);
+
+    // 시작은 빈 데이터 / 미로드 상태
+    let studentData = {};
+    let dataLoaded = false;
+    let charts = {};
+
+    // === XLSX Export ===
+    function downloadTemplate(evt) {
+      if (evt) evt.preventDefault();
+
+      const headers = ['이름','번호'];
+      ['S1','S2','S3'].forEach(term => {
+        SUBJECTS.forEach(subject => headers.push(`${term}_${subject}`));
+      });
+
+      const sampleStudent = ['홍길동','101'];
+      const sampleScores = [
+        [92, 88, 94, 85, 90, 93],
+        [95, 91, 96, 88, 92, 95],
+        [97, 94, 98, 90, 95, 97]
+      ].flat();
+      sampleStudent.push(...sampleScores);
+
+      const blankRow = ['김철수','102'];
+      blankRow.push(...Array(SUBJECTS.length * 3).fill(''));
+
+      const worksheet = XLSX.utils.aoa_to_sheet([
+        headers,
+        sampleStudent,
+        blankRow
+      ]);
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
+      XLSX.writeFile(workbook, '학생성적_양식.xlsx');
+    }
+
+    function downloadXLSX() {
+      if (!dataLoaded) { alert('먼저 데이터를 업로드하세요.'); return; }
+      const rows = [];
+      for (const [name, info] of Object.entries(studentData)) {
+        const r = {
+          '이름': name,
+          '번호': info.number ?? '',
+          'S1_공통국어': info.semester1?.[0] ?? '',
+          'S1_공통수학': info.semester1?.[1] ?? '',
+          'S1_공통영어': info.semester1?.[2] ?? '',
+          'S1_한국사':  info.semester1?.[3] ?? '',
+          'S1_통합사회': info.semester1?.[4] ?? '',
+          'S1_통합과학': info.semester1?.[5] ?? '',
+          'S2_공통국어': info.semester2?.[0] ?? '',
+          'S2_공통수학': info.semester2?.[1] ?? '',
+          'S2_공통영어': info.semester2?.[2] ?? '',
+          'S2_한국사':  info.semester2?.[3] ?? '',
+          'S2_통합사회': info.semester2?.[4] ?? '',
+          'S2_통합과학': info.semester2?.[5] ?? '',
+          'S3_공통국어': info.semester3?.[0] ?? '',
+          'S3_공통수학': info.semester3?.[1] ?? '',
+          'S3_공통영어': info.semester3?.[2] ?? '',
+          'S3_한국사':  info.semester3?.[3] ?? '',
+          'S3_통합사회': info.semester3?.[4] ?? '',
+          'S3_통합과학': info.semester3?.[5] ?? ''
+        };
+        rows.push(r);
+      }
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Scores');
+      XLSX.writeFile(wb, '학생성적_데이터셋.xlsx');
+    }
+
+    // === XLSX Import ===
+    function uploadXLSX(evt) {
+      const file = evt.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const ws = workbook.Sheets[firstSheetName];
+          const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+          const newData = {};
+          rows.forEach(row => {
+            const name = String(row['이름'] ?? '').trim();
+            if (!name) return;
+            const number = Number(row['번호'] ?? 0) || 0;
+
+            const s1 = [
+              toNum(row['S1_공통국어']), toNum(row['S1_공통수학']), toNum(row['S1_공통영어']),
+              toNum(row['S1_한국사']),   toNum(row['S1_통합사회']), toNum(row['S1_통합과학'])
+            ];
+            const s2 = [
+              toNum(row['S2_공통국어']), toNum(row['S2_공통수학']), toNum(row['S2_공통영어']),
+              toNum(row['S2_한국사']),   toNum(row['S2_통합사회']), toNum(row['S2_통합과학'])
+            ];
+            const s3 = [
+              toNum(row['S3_공통국어']), toNum(row['S3_공통수학']), toNum(row['S3_공통영어']),
+              toNum(row['S3_한국사']),   toNum(row['S3_통합사회']), toNum(row['S3_통합과학'])
+            ];
+
+            const valid = arr => arr.some(v => v !== '' && !isNaN(v));
+            newData[name] = {
+              number,
+              semester1: valid(s1) ? s1.map(n => (isNaN(n)?0:n)) : Array(SUBJECTS.length).fill(0),
+              semester2: valid(s2) ? s2.map(n => (isNaN(n)?0:n)) : Array(SUBJECTS.length).fill(0),
+              semester3: valid(s3) ? s3.map(n => (isNaN(n)?0:n)) : []
+            };
+          });
+
+          if (Object.keys(newData).length === 0) {
+            alert('업로드할 데이터가 비어있거나 형식이 맞지 않습니다.');
+            evt.target.value = '';
+            return;
+          }
+
+          studentData = newData;
+          dataLoaded = true;
+          enableUIAfterLoad();
+          alert('엑셀 데이터가 성공적으로 업로드되었습니다.');
+
+          // 현재 표시 중인 학생이 있으면 새 데이터 기준으로 갱신
+          const current = document.getElementById('studentName').value.trim();
+          if (current && studentData[current]) searchStudent();
+
+          evt.target.value = '';
+        } catch (err) {
+          console.error(err);
+          alert('파일을 처리하는 중 오류가 발생했습니다.');
+        }
+      };
+      reader.onerror = () => {
+        alert('파일을 읽는 중 오류가 발생했습니다.');
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function enableUIAfterLoad() {
+      // 검색/초기화
+      document.getElementById('studentName').disabled = false;
+      document.getElementById('btnSearch').disabled = false;
+      document.getElementById('btnClear').disabled = false;
+
+      // 추가 입력
+      document.getElementById('addStudentName').disabled = false;
+      document.getElementById('addKorean').disabled = false;
+      document.getElementById('addMath').disabled = false;
+      document.getElementById('addEnglish').disabled = false;
+      document.getElementById('addHistory').disabled = false;
+      document.getElementById('addSocial').disabled = false;
+      document.getElementById('addScience').disabled = false;
+      document.getElementById('btnAdd').disabled = false;
+
+      // 다운로드
+      document.getElementById('btnDownload').disabled = false;
+
+      // 힌트 변경
+      document.getElementById('studentName').placeholder = '이름을 입력하세요';
+      document.getElementById('addStudentName').placeholder = '이름 입력';
+    }
+
+    function toNum(v) {
+      const n = Number(v);
+      return isNaN(n) ? '' : n;
+    }
+
+    function searchStudent() {
+      if (!dataLoaded) { alert('먼저 데이터를 업로드하세요.'); return; }
+
+      const searchName = document.getElementById('studentName').value.trim();
+      const errorMsg = document.getElementById('errorMessage');
+      const studentInfo = document.getElementById('studentInfo');
+      const chartsSection = document.getElementById('chartsSection');
+      const dataTable = document.getElementById('dataTable');
+
+      errorMsg.style.display = 'none'; errorMsg.textContent = '';
+      if (!searchName) { errorMsg.textContent = '학생 이름을 입력해주세요.'; errorMsg.style.display = 'block'; return; }
+
+      const student = studentData[searchName];
+      if (!student) {
+        errorMsg.textContent = `'${searchName}' 학생을 찾을 수 없습니다. 정확한 이름을 입력해주세요.`;
+        errorMsg.style.display = 'block';
+        studentInfo.classList.remove('active'); chartsSection.style.display = 'none'; dataTable.style.display = 'none';
+        return;
+      }
+
+      document.getElementById('displayName').textContent = searchName;
+      document.getElementById('displayNumber').textContent = student.number ?? '';
+      studentInfo.classList.add('active');
+      chartsSection.style.display = 'grid';
+      dataTable.style.display = 'block';
+      createCharts(searchName, student);
+      updateTable(searchName, student);
+    }
+
+    function createCharts(name, student) {
+      const chartIds = ['koreanChart','mathChart','englishChart','historyChart','socialChart','scienceChart'];
+      const labels = ['1회','2회']; if (student.semester3.length > 0) labels.push('3회');
+
+      chartIds.forEach((chartId, index) => {
+        if (charts[chartId]) charts[chartId].destroy();
+        const ctx = document.getElementById(chartId).getContext('2d');
+        const data = [student.semester1?.[index] ?? 0, student.semester2?.[index] ?? 0];
+        if (student.semester3.length > 0) data.push(student.semester3?.[index] ?? 0);
+
+        charts[chartId] = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{
+              label: SUBJECTS[index],
+              data,
+              borderColor: getChartColor(index),
+              backgroundColor: getChartColor(index, 0.2),
+              borderWidth: 2, tension: 0.1, pointRadius: 5, pointHoverRadius: 7
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: true,
+            plugins: { legend: { display: false }, tooltip: {
+              callbacks: { label: (c) => `${c.parsed.y.toFixed(1)}점` }
+            }},
+            scales: {
+              y: { beginAtZero: true, max: 100, ticks: { stepSize: 20 }, title: { display: true, text: '점수' } },
+              x: { title: { display: true, text: '고사 차시' } }
+            }
+          }
+        });
+      });
+    }
+
+    function getChartColor(index, alpha = 1) {
+      const colors = [
+        `rgba(255, 99, 132, ${alpha})`,
+        `rgba(54, 162, 235, ${alpha})`,
+        `rgba(255, 206, 86, ${alpha})`,
+        `rgba(75, 192, 192, ${alpha})`,
+        `rgba(153, 102, 255, ${alpha})`,
+        `rgba(255, 159, 64, ${alpha})`
+      ];
+      return colors[index];
+    }
+
+    function updateTable(name, student) {
+      const tbody = document.getElementById('scoresBody');
+      tbody.innerHTML = '';
+
+      const row1 = tbody.insertRow();
+      row1.insertCell(0).textContent = '1회';
+      (student.semester1 || []).forEach(s => row1.insertCell().textContent = Number(s).toFixed(1));
+      row1.insertCell().textContent = ((student.semester1 || []).reduce((a,b)=>a+Number(b||0),0)/SUBJECTS.length).toFixed(1);
+
+      const row2 = tbody.insertRow();
+      row2.insertCell(0).textContent = '2회';
+      (student.semester2 || []).forEach(s => row2.insertCell().textContent = Number(s).toFixed(1));
+      row2.insertCell().textContent = ((student.semester2 || []).reduce((a,b)=>a+Number(b||0),0)/SUBJECTS.length).toFixed(1);
+
+      if ((student.semester3 || []).length > 0) {
+        const row3 = tbody.insertRow();
+        row3.insertCell(0).textContent = '3회';
+        student.semester3.forEach(s => row3.insertCell().textContent = Number(s).toFixed(1));
+        row3.insertCell().textContent = ((student.semester3 || []).reduce((a,b)=>a+Number(b||0),0)/SUBJECTS.length).toFixed(1);
+      }
+    }
+
+    function clearSearch() {
+      document.getElementById('studentName').value = '';
+      document.getElementById('errorMessage').style.display = 'none';
+      document.getElementById('studentInfo').classList.remove('active');
+      document.getElementById('chartsSection').style.display = 'none';
+      document.getElementById('dataTable').style.display = 'none';
+    }
+
+    function addThirdSemester() {
+      if (!dataLoaded) { alert('먼저 데이터를 업로드하세요.'); return; }
+
+      const name = document.getElementById('addStudentName').value.trim();
+      if (!name || !studentData[name]) { alert('유효한 학생 이름을 입력해주세요.'); return; }
+
+      const scores = [
+        parseFloat(document.getElementById('addKorean').value),
+        parseFloat(document.getElementById('addMath').value),
+        parseFloat(document.getElementById('addEnglish').value),
+        parseFloat(document.getElementById('addHistory').value),
+        parseFloat(document.getElementById('addSocial').value),
+        parseFloat(document.getElementById('addScience').value)
+      ];
+
+      if (scores.some(s => isNaN(s))) { alert('모든 과목의 점수를 입력해주세요.'); return; }
+
+      studentData[name].semester3 = scores;
+      alert(`${name} 학생의 3회 고사 성적이 추가되었습니다.`);
+
+      document.getElementById('addStudentName').value = '';
+      document.getElementById('addKorean').value = '';
+      document.getElementById('addMath').value = '';
+      document.getElementById('addEnglish').value = '';
+      document.getElementById('addHistory').value = '';
+      document.getElementById('addSocial').value = '';
+      document.getElementById('addScience').value = '';
+
+      const currentSearchName = document.getElementById('studentName').value.trim();
+      if (currentSearchName === name) searchStudent();
+    }
+
+    // Enter로 검색
+    document.getElementById('studentName').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') searchStudent();
+    });
+  </script>
+</body>
+</html>
