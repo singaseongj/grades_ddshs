@@ -97,7 +97,7 @@ canvas { max-height: 250px; }
 .error-message { color: #d32f2f; margin-top: 10px; display: none; }
 
 .hint { color:#777; font-size:14px; margin-top:6px; }
-.hint.privacy-note { color:#c62828; }
+.hint.privacy-note { color:#5d28c6; }
 
 .data-table { margin-top: 30px; display: none; }
 table { width: 100%; border-collapse: collapse; margin-top: 20px; }
