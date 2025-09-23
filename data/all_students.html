@@ -228,12 +228,12 @@
         return a.name.localeCompare(b.name, 'ko');
       },
       weightedSum: (a, b) => {
-        const result = compareNumericAsc(a.weightedSum, b.weightedSum);
+        const result = compareNumericDesc(a.weightedSum, b.weightedSum);
         if (result !== 0) return result;
         return a.name.localeCompare(b.name, 'ko');
       },
       weightedAverage: (a, b) => {
-        const result = compareNumericAsc(a.weightedAverage, b.weightedAverage);
+        const result = compareNumericDesc(a.weightedAverage, b.weightedAverage);
         if (result !== 0) return result;
         return a.name.localeCompare(b.name, 'ko');
       },
@@ -246,7 +246,7 @@
 
     SUBJECTS.forEach((_, index) => {
       SORT_HANDLERS[`subject-${index}`] = (a, b) => {
-        const scoreCompare = compareNumericAsc(a.subjectAverages[index], b.subjectAverages[index]);
+        const scoreCompare = compareNumericDesc(a.subjectAverages[index], b.subjectAverages[index]);
         if (scoreCompare !== 0) return scoreCompare;
         const gradeCompare = compareNumericAsc(extractGradeValue(a.subjectGrades[index]), extractGradeValue(b.subjectGrades[index]));
         if (gradeCompare !== 0) return gradeCompare;
@@ -286,6 +286,14 @@
       const b = Number.isFinite(rawB) ? rawB : Infinity;
       if (a < b) return -1;
       if (a > b) return 1;
+      return 0;
+    }
+
+    function compareNumericDesc(rawA, rawB) {
+      const a = Number.isFinite(rawA) ? rawA : -Infinity;
+      const b = Number.isFinite(rawB) ? rawB : -Infinity;
+      if (a > b) return -1;
+      if (a < b) return 1;
       return 0;
     }
 
@@ -567,7 +575,7 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'align-button';
-      button.innerHTML = '<span aria-hidden="true">↕</span>';
+      button.innerHTML = '<span aria-hidden="true">☰</span>';
       button.title = `${label} 정렬`;
       button.setAttribute('aria-label', `${label} 정렬`);
       button.addEventListener('click', () => sortStudents(sortKey));
