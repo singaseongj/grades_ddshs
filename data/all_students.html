@@ -6,433 +6,336 @@
   <title>전체 학생 성적 분석</title>
   <link rel="stylesheet" href="../style.css" />
   <style>
-    body { background: #eef2f7; }
-    .summary-container {
-      max-width: 1280px;
-      margin: 30px auto;
-      background: #ffffff;
-      padding: 32px;
-      border-radius: 18px;
-      box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
-    }
-    .summary-header {
+    .analysis-container { margin-top: 20px; }
+    .analysis-container h1 { margin-bottom: 10px; }
+    .analysis-container .description { color: #555; margin-bottom: 25px; }
+
+    .analysis-summary {
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-    .summary-header h1 {
-      margin: 0;
-      font-size: 2.1rem;
-      color: #0f172a;
-      text-align: center;
-    }
-    .summary-links {
-      display: flex;
-      gap: 12px;
       flex-wrap: wrap;
-      justify-content: center;
+      gap: 15px;
+      margin-bottom: 20px;
     }
-    .summary-links a {
-      padding: 8px 16px;
-      border-radius: 999px;
-      background: #e8f0fe;
-      color: #0b57d0;
+    .summary-item {
+      background: #f0f4ff;
+      border-radius: 10px;
+      padding: 14px 20px;
+      min-width: 160px;
+      box-shadow: 0 1px 4px rgba(26, 39, 86, 0.12);
+    }
+    .summary-item .label {
+      font-size: 14px;
+      color: #5f6368;
+      display: block;
+      margin-bottom: 6px;
+    }
+    .summary-item .value {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1a237e;
+    }
+
+    .empty-state {
+      text-align: center;
+      background: #fff3e0;
+      border-radius: 10px;
+      border: 1px solid #ffe0b2;
+      padding: 40px 20px;
+      color: #8a6d3b;
+    }
+    .empty-state p { margin-bottom: 18px; font-size: 16px; }
+
+    .link-button {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #1a73e8;
+      color: #fff;
+      border-radius: 6px;
       font-weight: 600;
       text-decoration: none;
-      transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
     }
-    @media (hover: hover) and (pointer: fine) {
-      .summary-links a:hover {
-        background: #d2e3fc;
-        color: #0840a3;
-        transform: translateY(-1px);
-      }
-    }
-    .summary-links a:focus { outline: 2px solid #0b57d0; outline-offset: 2px; }
-    .summary-description {
-      margin: 0 auto 18px;
-      max-width: 760px;
-      text-align: center;
-      color: #475569;
-      line-height: 1.6;
-      font-size: 1rem;
-    }
-    .analysis-notice {
-      margin-bottom: 20px;
-      padding: 14px 18px;
-      border-radius: 10px;
-      background: #f1f5f9;
-      color: #1e293b;
-      font-weight: 600;
-    }
-    .analysis-notice.warning {
-      background: #fdecea;
-      color: #b71c1c;
-      border: 1px solid #f5c6cb;
-    }
-    .table-wrapper { overflow-x: auto; }
-    table#analysisTable { width: 100%; border-collapse: collapse; margin-top: 0; }
-    #analysisTable th, #analysisTable td {
-      padding: 12px 10px;
-      border: 1px solid #e2e8f0;
-      text-align: center;
-      font-size: 0.95rem;
-    }
-    #analysisTable thead th {
-      background: #0b57d0;
-      color: #ffffff;
-      font-size: 1rem;
-      position: sticky;
-      top: 0;
-      z-index: 1;
-    }
-    #analysisTable tbody tr:nth-child(even) { background: #f8fbff; }
-    #analysisTable tbody tr:hover { background: #eef6ff; }
-    .subject-grade {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      min-width: 120px;
-    }
-    .subject-grade .score { font-weight: 600; color: #1f2937; }
-    .grade-tag {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 52px;
-      padding: 2px 12px;
-      border-radius: 999px;
-      font-size: 0.85rem;
-      font-weight: 700;
-      color: #ffffff;
-      letter-spacing: 0.01em;
-    }
-    .grade-tag.is-1 { background: #c62828; }
-    .grade-tag.is-2 { background: #ef6c00; }
-    .grade-tag.is-3 { background: #2e7d32; }
-    .grade-tag.is-4 { background: #1565c0; }
-    .grade-tag.is-5 { background: #6a1b9a; }
-    .rank-cell { font-weight: 700; color: #0f172a; }
-    .summary-note {
-      margin-top: 18px;
-      color: #64748b;
-      font-size: 0.9rem;
-      line-height: 1.5;
-    }
+    .link-button:hover { background-color: #0c47a1; }
+
+    .analysis-content { margin-top: 10px; }
+    .grade-note { color: #5f6368; margin-bottom: 12px; }
+    .grade-cell { font-weight: 600; color: #0d47a1; }
+    .grade-cell span { display: block; font-size: 12px; color: #5f6368; font-weight: 400; }
+
     @media (max-width: 768px) {
-      .summary-container { margin: 16px; padding: 24px 18px; }
-      .subject-grade { min-width: 100px; }
+      .summary-item { flex: 1 1 100%; }
+      table { font-size: 14px; }
     }
   </style>
 </head>
 <body>
-  <div class="summary-container">
-    <header class="summary-header">
-      <h1>전체 학생 성적 분석</h1>
-      <div class="summary-links">
-        <a href="../index.html">메인으로</a>
-        <a href="grade_cal.html">등급계산기</a>
-      </div>
-    </header>
-    <p class="summary-description">
-      업로드한 엑셀 데이터를 기반으로 학생들의 과목별 평균 점수와 등급, 전체 등수를 계산해 보여줍니다.
-      데이터가 없다면 먼저 메인 페이지에서 엑셀 파일을 업로드하세요.
-    </p>
-    <div id="analysisNotice" class="analysis-notice"></div>
-    <div id="analysisTableWrapper" class="table-wrapper" style="display:none;">
-      <table id="analysisTable">
-        <thead></thead>
-        <tbody></tbody>
+  <div class="container analysis-container">
+    <h1>전체 학생 성적 분석</h1>
+    <p class="description">업로드한 엑셀 데이터를 기반으로 학생별 합계, 평균, 과목별 등급, 전체 등수를 확인할 수 있습니다.</p>
+
+    <div id="emptyState" class="empty-state" hidden>
+      <p>아직 업로드된 학생 성적 데이터가 없습니다. 메인 화면에서 엑셀 파일을 업로드한 뒤 다시 확인해주세요.</p>
+      <a class="link-button" href="../index.html">메인 화면으로 이동</a>
+    </div>
+
+    <div id="analysisContent" class="analysis-content" hidden>
+      <div class="analysis-summary" id="analysisSummary"></div>
+      <p class="grade-note">※ 등급은 1~5등급 비율 (10% / 24% / 32% / 24% / 10%)을 기반으로 과목별 성적 순위를 계산하여 산출됩니다.</p>
+      <table class="analysis-table">
+        <thead id="analysisHead"></thead>
+        <tbody id="analysisBody"></tbody>
       </table>
     </div>
-    <p class="summary-note">
-      ※ 과목별 등급은 전체 학생의 해당 과목 평균 점수 순위를 기준으로 1~5등급(10% / 24% / 32% / 24% / 10%)을 부여하며, 동점자는 같은 등급을 받습니다.
-    </p>
   </div>
+
   <script>
-    const STORAGE_KEY = 'gradesApp.studentDataset';
-    const FALLBACK_SUBJECTS = ['공통국어','공통수학','공통영어','한국사','통합사회','통합과학'];
-    const GRADE_CONFIG = [
-      { label: '1등급', percent: 10 },
-      { label: '2등급', percent: 24 },
-      { label: '3등급', percent: 32 },
-      { label: '4등급', percent: 24 },
-      { label: '5등급', percent: 10 }
-    ];
+    const SUBJECTS = ['공통국어','공통수학','공통영어','한국사','통합사회','통합과학'];
+    const GRADE_CONFIG = [10, 24, 32, 24, 10];
+    const STORAGE_KEY = 'grades:studentDataset';
 
-    const noticeEl = document.getElementById('analysisNotice');
-    const tableWrapper = document.getElementById('analysisTableWrapper');
-    const tableHead = document.querySelector('#analysisTable thead');
-    const tableBody = document.querySelector('#analysisTable tbody');
-
-    init();
-
-    function init() {
-      const data = loadData();
-      if (!data) {
-        showWarning('저장된 학생 데이터가 없습니다. 메인 페이지에서 엑셀 파일을 업로드한 뒤 다시 확인해주세요.');
-        return;
-      }
-
-      const { subjects, students } = data;
-      const entries = Object.entries(students || {});
-      if (!entries.length) {
-        showWarning('분석할 학생 데이터가 비어 있습니다. 엑셀 파일의 내용을 확인해주세요.');
-        return;
-      }
-
-      renderTable(subjects, entries);
-    }
-
-    function loadData() {
-      if (typeof window === 'undefined' || !window.localStorage) {
-        return null;
-      }
+    function loadStudentDataset() {
+      if (typeof localStorage === 'undefined') return null;
       try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== 'object' || !parsed.students) return null;
-        const subjects = Array.isArray(parsed.subjects) && parsed.subjects.length ? parsed.subjects : FALLBACK_SUBJECTS;
-        return { subjects, students: parsed.students };
+        return parsed && typeof parsed === 'object' ? parsed : null;
       } catch (err) {
-        console.error('데이터를 불러오는 중 오류가 발생했습니다.', err);
+        console.error('저장된 학생 데이터를 불러오는 중 문제가 발생했습니다.', err);
         return null;
       }
     }
 
-    function showWarning(message) {
-      noticeEl.textContent = message;
-      noticeEl.classList.add('warning');
-      tableWrapper.style.display = 'none';
+    function formatNumber(value, digits = 1) {
+      if (!Number.isFinite(value)) return '-';
+      return value.toLocaleString('ko-KR', {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+      });
     }
 
-    function renderTable(subjects, entries) {
-      const summaries = entries.map(([name, info]) => buildStudentSummary(name, info, subjects));
-      const overallRanks = computeOverallRanks(summaries);
-      const subjectGrades = computeSubjectGrades(subjects, summaries);
-      const collator = new Intl.Collator('ko');
-
-      const sorted = summaries.slice().sort((a, b) => {
-        const rankA = rankValue(overallRanks[a.name]);
-        const rankB = rankValue(overallRanks[b.name]);
-        if (rankA === rankB) {
-          return collator.compare(a.name, b.name);
+    function calculateSubjectAverage(student, index) {
+      const terms = [student.semester1, student.semester2, student.semester3];
+      const scores = [];
+      terms.forEach(term => {
+        if (!Array.isArray(term) || term.length <= index) return;
+        const score = Number(term[index]);
+        if (Number.isFinite(score)) {
+          scores.push(score);
         }
-        return rankA - rankB;
       });
+      if (scores.length === 0) return 0;
+      const total = scores.reduce((sum, value) => sum + value, 0);
+      return total / scores.length;
+    }
 
-      buildTableHead(subjects);
-      tableBody.innerHTML = '';
-
-      sorted.forEach(summary => {
-        const tr = document.createElement('tr');
-        const rank = overallRanks[summary.name];
-        const numberCell = summary.number ? summary.number : '-';
-        const sumCell = Number.isFinite(summary.totalSum) ? summary.totalSum.toFixed(1) : '-';
-        const avgCell = Number.isFinite(summary.average) ? summary.average.toFixed(1) : '-';
-
-        const subjectCells = subjects.map((_, idx) => createSubjectCell(summary, idx, subjectGrades));
-        tr.innerHTML = `
-          <td>${numberCell}</td>
-          <td>${summary.name}</td>
-          <td>${sumCell}</td>
-          <td>${avgCell}</td>
-          ${subjectCells.join('')}
-          <td class="rank-cell">${typeof rank === 'number' ? `${rank}위` : '-'}</td>
-        `;
-        tableBody.appendChild(tr);
+    function buildStudentSummaries(dataset) {
+      return Object.entries(dataset).map(([name, info]) => {
+        const subjectAverages = SUBJECTS.map((_, idx) => calculateSubjectAverage(info, idx));
+        const totalScore = subjectAverages.reduce((sum, value) => sum + value, 0);
+        const averageScore = SUBJECTS.length > 0 ? totalScore / SUBJECTS.length : 0;
+        return {
+          key: `${name}__${info.number ?? ''}`,
+          name,
+          studentId: info.number ?? '',
+          subjectAverages,
+          subjectGrades: Array(SUBJECTS.length).fill('-'),
+          sum: totalScore,
+          average: averageScore,
+          overallRank: 0
+        };
       });
-
-      noticeEl.classList.remove('warning');
-      noticeEl.textContent = `총 ${sorted.length}명의 학생 데이터를 분석했습니다.`;
-      tableWrapper.style.display = '';
     }
 
-    function buildStudentSummary(name, info, subjects) {
-      const subjectAverages = subjects.map((_, idx) => computeSubjectAverage(info, idx));
-      const validScores = subjectAverages.filter(score => Number.isFinite(score));
-      const totalSum = validScores.length ? validScores.reduce((sum, value) => sum + value, 0) : null;
-      const average = validScores.length ? totalSum / validScores.length : null;
-      return {
-        name,
-        number: typeof info.number === 'number' ? String(info.number) : (info.number || ''),
-        subjectAverages,
-        totalSum,
-        average
-      };
-    }
+    function computeGradeSlices(total) {
+      if (total <= 0) return [];
+      const slices = [];
+      let cumulativeEstimate = 0;
+      let previousEnd = 0;
 
-    function computeSubjectAverage(info, index) {
-      const values = [];
-      addIfValid(values, info.semester1, index);
-      addIfValid(values, info.semester2, index);
-      addIfValid(values, info.semester3, index);
-      if (!values.length) return null;
-      const sum = values.reduce((acc, cur) => acc + cur, 0);
-      return sum / values.length;
-    }
-
-    function addIfValid(target, term, index) {
-      if (!Array.isArray(term)) return;
-      const value = term[index];
-      if (typeof value === 'number' && Number.isFinite(value)) {
-        target.push(value);
-      }
-    }
-
-    function computeOverallRanks(summaries) {
-      const ranked = {};
-      const sorted = summaries.slice().sort((a, b) => {
-        const avgA = Number.isFinite(a.average) ? a.average : -Infinity;
-        const avgB = Number.isFinite(b.average) ? b.average : -Infinity;
-        return avgB - avgA;
-      });
-
-      let currentRank = 0;
-      let previousScore = null;
-      sorted.forEach((summary, index) => {
-        if (!Number.isFinite(summary.average)) {
-          ranked[summary.name] = '-';
-          return;
-        }
-        const normalized = Number(summary.average.toFixed(4));
-        if (previousScore !== null && Math.abs(normalized - previousScore) < 1e-6) {
-          ranked[summary.name] = currentRank;
+      GRADE_CONFIG.forEach((percent, index) => {
+        cumulativeEstimate += total * (percent / 100);
+        let endRank = Math.round(cumulativeEstimate);
+        if (index === GRADE_CONFIG.length - 1) {
+          endRank = total;
         } else {
-          currentRank = index + 1;
-          ranked[summary.name] = currentRank;
-          previousScore = normalized;
+          endRank = Math.min(endRank, total);
         }
+        if (endRank < previousEnd) {
+          endRank = previousEnd;
+        }
+        const startRank = previousEnd + 1;
+        const adjustedEnd = Math.max(endRank, startRank - 1);
+        slices.push({ grade: index + 1, startRank, endRank: adjustedEnd });
+        previousEnd = adjustedEnd;
       });
 
-      summaries.forEach(summary => {
-        if (!Number.isFinite(summary.average)) {
-          ranked[summary.name] = '-';
-        }
-      });
-
-      return ranked;
+      const lastSlice = slices[slices.length - 1];
+      if (lastSlice && lastSlice.endRank < total) {
+        lastSlice.endRank = total;
+      }
+      return slices;
     }
 
-    function computeSubjectGrades(subjects, summaries) {
-      const gradeMap = {};
-      summaries.forEach(summary => {
-        gradeMap[summary.name] = Array(subjects.length).fill('-');
-      });
+    function assignSubjectGrades(students) {
+      if (!students.length) return;
+      SUBJECTS.forEach((_, subjectIndex) => {
+        const ordered = [...students].sort((a, b) => b.subjectAverages[subjectIndex] - a.subjectAverages[subjectIndex]);
+        const gradeSlices = computeGradeSlices(ordered.length);
+        let previousScore = null;
+        let previousRank = 0;
+        let previousGrade = null;
 
-      subjects.forEach((_, idx) => {
-        const subjectScores = summaries
-          .map(summary => ({ name: summary.name, score: summary.subjectAverages[idx] }))
-          .filter(entry => Number.isFinite(entry.score))
-          .sort((a, b) => b.score - a.score);
-
-        if (!subjectScores.length) {
-          return;
-        }
-
-        const boundaries = buildGradeBoundaries(subjectScores.length);
-        subjectScores.forEach((entry, position) => {
-          let grade = gradeForRank(position + 1, boundaries);
-          if (position > 0) {
-            const previous = subjectScores[position - 1];
-            if (Math.abs(entry.score - previous.score) < 1e-6) {
-              grade = previous.assignedGrade;
-            }
+        ordered.forEach((student, index) => {
+          const score = student.subjectAverages[subjectIndex];
+          const isTie = previousScore !== null && Math.abs(previousScore - score) < 1e-6;
+          const rank = isTie ? previousRank : index + 1;
+          const slice = gradeSlices.find(range => rank >= range.startRank && rank <= range.endRank) || gradeSlices[gradeSlices.length - 1];
+          const gradeValue = slice ? `${slice.grade}등급` : '-';
+          student.subjectGrades[subjectIndex] = isTie && previousGrade ? previousGrade : gradeValue;
+          if (!isTie) {
+            previousScore = score;
+            previousRank = rank;
+            previousGrade = student.subjectGrades[subjectIndex];
           }
-          entry.assignedGrade = grade;
-          gradeMap[entry.name][idx] = grade;
         });
       });
-
-      return gradeMap;
     }
 
-    function buildGradeBoundaries(total) {
-      const slots = [];
-      let running = 0;
-      let previousCumulative = 0;
+    function assignOverallRanks(students) {
+      if (!students.length) return;
+      const ordered = [...students].sort((a, b) => b.sum - a.sum);
+      let previousScore = null;
+      let previousRank = 0;
 
-      GRADE_CONFIG.forEach((config, index) => {
-        running += total * (config.percent / 100);
-        let cumulative = index === GRADE_CONFIG.length - 1 ? total : Math.round(running);
-        cumulative = Math.min(Math.max(cumulative, previousCumulative), total);
-        const count = cumulative - previousCumulative;
-        slots.push({ grade: config.label, count });
-        previousCumulative = cumulative;
-      });
-
-      const assignedTotal = slots.reduce((sum, slot) => sum + slot.count, 0);
-      if (assignedTotal < total && slots.length) {
-        slots[slots.length - 1].count += total - assignedTotal;
-      }
-
-      const boundaries = [];
-      let cumulative = 0;
-      slots.forEach(slot => {
-        if (slot.count <= 0) return;
-        cumulative += slot.count;
-        boundaries.push({ grade: slot.grade, maxRank: cumulative });
-      });
-
-      if (!boundaries.length) {
-        boundaries.push({ grade: GRADE_CONFIG[GRADE_CONFIG.length - 1].label, maxRank: total });
-      }
-
-      return boundaries;
-    }
-
-    function gradeForRank(rank, boundaries) {
-      for (const boundary of boundaries) {
-        if (rank <= boundary.maxRank) {
-          return boundary.grade;
+      ordered.forEach((student, index) => {
+        const score = student.sum;
+        const isTie = previousScore !== null && Math.abs(previousScore - score) < 1e-6;
+        const rank = isTie ? previousRank : index + 1;
+        student.overallRank = rank;
+        if (!isTie) {
+          previousScore = score;
+          previousRank = rank;
         }
-      }
-      return boundaries.length ? boundaries[boundaries.length - 1].grade : '-';
+      });
     }
 
-    function createSubjectCell(summary, index, gradeMap) {
-      const average = summary.subjectAverages[index];
-      const grade = gradeMap[summary.name]?.[index] ?? '-';
-      const parts = [];
-      if (Number.isFinite(average)) {
-        parts.push(`<span class="score">${average.toFixed(1)}점</span>`);
-      }
-      if (grade !== '-') {
-        parts.push(`<span class="grade-tag ${gradeBadgeClass(grade)}">${grade}</span>`);
-      }
-      if (!parts.length) {
-        return '<td class="subject-grade">-</td>';
-      }
-      return `<td class="subject-grade">${parts.join('')}</td>`;
+    function buildTableHeader() {
+      const head = document.getElementById('analysisHead');
+      head.innerHTML = '';
+      const row = document.createElement('tr');
+      const baseHeaders = ['전체 등수','이름','학번','합계','평균'];
+      baseHeaders.forEach(text => {
+        const th = document.createElement('th');
+        th.textContent = text;
+        row.appendChild(th);
+      });
+      SUBJECTS.forEach(subject => {
+        const th = document.createElement('th');
+        th.textContent = `${subject} 등급`;
+        row.appendChild(th);
+      });
+      head.appendChild(row);
     }
 
-    function gradeBadgeClass(grade) {
-      const match = /^([1-5])/.exec(grade);
-      if (!match) return '';
-      return `is-${match[1]}`;
+    function renderTableRows(students) {
+      const body = document.getElementById('analysisBody');
+      body.innerHTML = '';
+      const ordered = [...students].sort((a, b) => a.overallRank - b.overallRank || a.name.localeCompare(b.name, 'ko'));
+      ordered.forEach(student => {
+        const row = document.createElement('tr');
+
+        const rankCell = document.createElement('td');
+        rankCell.textContent = student.overallRank ? `${student.overallRank}` : '-';
+        row.appendChild(rankCell);
+
+        const nameCell = document.createElement('td');
+        nameCell.textContent = student.name;
+        row.appendChild(nameCell);
+
+        const idCell = document.createElement('td');
+        idCell.textContent = student.studentId ? student.studentId : '-';
+        row.appendChild(idCell);
+
+        const sumCell = document.createElement('td');
+        sumCell.textContent = formatNumber(student.sum, 1);
+        row.appendChild(sumCell);
+
+        const avgCell = document.createElement('td');
+        avgCell.textContent = formatNumber(student.average, 2);
+        row.appendChild(avgCell);
+
+        student.subjectGrades.forEach((grade, index) => {
+          const td = document.createElement('td');
+          td.classList.add('grade-cell');
+          td.textContent = grade;
+          const averageScore = student.subjectAverages[index];
+          if (Number.isFinite(averageScore)) {
+            td.title = `${SUBJECTS[index]} 평균: ${formatNumber(averageScore, 1)}점`;
+          }
+          row.appendChild(td);
+        });
+
+        body.appendChild(row);
+      });
     }
 
-    function buildTableHead(subjects) {
-      const headerRow = document.createElement('tr');
-      headerRow.innerHTML = `
-        <th>학번</th>
-        <th>이름</th>
-        <th>합계</th>
-        <th>평균</th>
-        ${subjects.map(subject => `<th>${subject} 등급</th>`).join('')}
-        <th>전체 등수</th>
-      `;
-      tableHead.innerHTML = '';
-      tableHead.appendChild(headerRow);
+    function renderSummary(students) {
+      const summary = document.getElementById('analysisSummary');
+      summary.innerHTML = '';
+      if (!students.length) return;
+      const overallAverage = students.reduce((sum, student) => sum + student.average, 0) / students.length;
+      const highestAverage = students.reduce((max, student) => Math.max(max, student.average), 0);
+
+      const items = [
+        { label: '총 학생 수', value: `${students.length.toLocaleString('ko-KR')}명` },
+        { label: '전체 평균', value: `${formatNumber(overallAverage, 2)}점` },
+        { label: '최고 평균', value: `${formatNumber(highestAverage, 2)}점` }
+      ];
+
+      items.forEach(({ label, value }) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'summary-item';
+        const labelEl = document.createElement('span');
+        labelEl.className = 'label';
+        labelEl.textContent = label;
+        const valueEl = document.createElement('span');
+        valueEl.className = 'value';
+        valueEl.textContent = value;
+        wrapper.appendChild(labelEl);
+        wrapper.appendChild(valueEl);
+        summary.appendChild(wrapper);
+      });
     }
 
-    function rankValue(rank) {
-      return typeof rank === 'number' ? rank : Number.POSITIVE_INFINITY;
+    function initialize() {
+      const dataset = loadStudentDataset();
+      const emptyState = document.getElementById('emptyState');
+      const analysisContent = document.getElementById('analysisContent');
+
+      if (!dataset || Object.keys(dataset).length === 0) {
+        emptyState.hidden = false;
+        analysisContent.hidden = true;
+        return;
+      }
+
+      const students = buildStudentSummaries(dataset);
+      if (!students.length) {
+        emptyState.hidden = false;
+        analysisContent.hidden = true;
+        return;
+      }
+
+      assignSubjectGrades(students);
+      assignOverallRanks(students);
+      buildTableHeader();
+      renderSummary(students);
+      renderTableRows(students);
+
+      emptyState.hidden = true;
+      analysisContent.hidden = false;
     }
+
+    document.addEventListener('DOMContentLoaded', initialize);
   </script>
 </body>
 </html>
