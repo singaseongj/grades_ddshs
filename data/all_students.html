@@ -247,10 +247,10 @@
       name: (a, b) => {
         const result = compareStringAsc(a.name, b.name);
         if (result !== 0) return result;
-        return compareStringAsc(a.studentId, b.studentId);
+        return compareNumericAsc(a.studentId, b.studentId);
       },
       studentId: (a, b) => {
-        const result = compareStringAsc(a.studentId, b.studentId);
+        const result = compareNumericAsc(a.studentId, b.studentId);
         if (result !== 0) return result;
         return a.name.localeCompare(b.name, 'ko');
       },
@@ -330,6 +330,18 @@
       return String(a).localeCompare(String(b), 'ko');
     }
 
+    function toFiniteNumber(value) {
+      if (value === null || value === undefined) return null;
+      if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
+      }
+      if (typeof value === 'string' && value.trim() === '') {
+        return null;
+      }
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric : null;
+    }
+
     function extractGradeValue(gradeText) {
       if (typeof gradeText !== 'string') return null;
       const match = gradeText.match(/(\d+)/);
@@ -353,13 +365,14 @@
 
     function buildStudentSummaries(dataset) {
       return Object.entries(dataset).map(([name, info]) => {
+        const studentId = toFiniteNumber(info.number);
         const subjectAverages = SUBJECTS.map((_, idx) => calculateSubjectAverage(info, idx));
         const totalScore = subjectAverages.reduce((sum, value) => sum + value, 0);
         const averageScore = SUBJECTS.length > 0 ? totalScore / SUBJECTS.length : 0;
         return {
           key: `${name}__${info.number ?? ''}`,
           name,
-          studentId: info.number ?? '',
+          studentId,
           subjectAverages,
           subjectGrades: Array(SUBJECTS.length).fill('-'),
           sum: totalScore,
@@ -649,7 +662,9 @@
         const row = document.createElement('tr');
 
         const rankCell = document.createElement('td');
-        rankCell.textContent = student.overallRank ? `${student.overallRank}` : '-';
+        rankCell.textContent = Number.isFinite(student.overallRank)
+          ? String(student.overallRank)
+          : '-';
         row.appendChild(rankCell);
 
         const nameCell = document.createElement('td');
@@ -657,7 +672,9 @@
         row.appendChild(nameCell);
 
         const idCell = document.createElement('td');
-        idCell.textContent = student.studentId ? student.studentId : '-';
+        idCell.textContent = Number.isFinite(student.studentId)
+          ? String(student.studentId)
+          : '-';
         row.appendChild(idCell);
 
         const sumCell = document.createElement('td');
