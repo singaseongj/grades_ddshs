@@ -62,25 +62,110 @@
     .grade-cell span { display: block; font-size: 12px; color: #5f6368; font-weight: 400; }
 
     .analysis-table th {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      position: relative;
+      text-align: center;
       white-space: nowrap;
+      padding-right: 28px;
+      vertical-align: bottom;
+    }
+
+    .analysis-table th span {
+      display: block;
+      font-weight: 600;
     }
 
     .analysis-table th .align-button {
-      margin-left: auto;
-      padding: 4px 8px;
-      font-size: 12px;
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
       border: 1px solid #1a73e8;
       background: #fff;
       color: #1a73e8;
-      border-radius: 4px;
+      border-radius: 50%;
       cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
     }
 
     .analysis-table th .align-button:hover {
       background-color: #e8f0fe;
+    }
+
+    .weight-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 18px;
+      align-items: flex-end;
+    }
+
+    .weight-controls.hidden {
+      display: none;
+    }
+
+    .weight-group {
+      display: flex;
+      flex-direction: column;
+      min-width: 130px;
+    }
+
+    .weight-group label {
+      font-size: 13px;
+      color: #5f6368;
+      margin-bottom: 6px;
+    }
+
+    .weight-group input {
+      padding: 6px 10px;
+      border: 1px solid #c3c8d4;
+      border-radius: 6px;
+      font-size: 14px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .grade-cut-container {
+      margin-top: 32px;
+    }
+
+    .grade-cut-container h2 {
+      font-size: 18px;
+      margin-bottom: 12px;
+      color: #1a237e;
+    }
+
+    .grade-cut-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #f8f9ff;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .grade-cut-table th,
+    .grade-cut-table td {
+      border: 1px solid #d9def2;
+      padding: 10px 14px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .grade-cut-table th {
+      background: #e8ecff;
+      color: #1a237e;
+      font-weight: 600;
+    }
+
+    .grade-cut-table td:first-child {
+      font-weight: 600;
+      color: #1a237e;
+      background: #eef1ff;
     }
 
     @media (max-width: 768px) {
@@ -92,7 +177,7 @@
 <body>
   <div class="container analysis-container">
     <h1>전체 학생 성적 분석</h1>
-    <p class="description">업로드한 엑셀 데이터를 기반으로 학생별 합계, 평균, 과목별 등급, 전체 등수를 확인할 수 있습니다.</p>
+    <p class="description">업로드한 엑셀 데이터를 기반으로 학생별 가중치 합계, 가중치 평균, 과목별 등급, 전체 등수를 확인할 수 있습니다.</p>
 
     <div id="emptyState" class="empty-state" hidden>
       <p>아직 업로드된 학생 성적 데이터가 없습니다. 메인 화면에서 엑셀 파일을 업로드한 뒤 다시 확인해주세요.</p>
@@ -101,19 +186,30 @@
 
     <div id="analysisContent" class="analysis-content" hidden>
       <div class="analysis-summary" id="analysisSummary"></div>
+      <div id="weightControls" class="weight-controls hidden"></div>
       <p class="grade-note">※ 등급은 1~5등급 비율 (10% / 24% / 32% / 24% / 10%)을 기반으로 과목별 성적 순위를 계산하여 산출됩니다.</p>
       <table class="analysis-table">
         <thead id="analysisHead"></thead>
         <tbody id="analysisBody"></tbody>
       </table>
+      <div id="gradeCutContainer" class="grade-cut-container" hidden>
+        <h2>과목별 등급</h2>
+        <table class="grade-cut-table">
+          <thead id="gradeCutHead"></thead>
+          <tbody id="gradeCutBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
   <script>
     const SUBJECTS = ['공통국어','공통수학','공통영어','한국사','통합사회','통합과학'];
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
+    const GRADE_LEVELS = [1, 2, 3, 4, 5];
     const STORAGE_KEY = 'grades:studentDataset';
     let currentStudents = [];
+    let currentSortKey = 'overallRank';
+    let subjectWeights = SUBJECTS.map(() => 1);
 
     const SORT_HANDLERS = {
       overallRank: (a, b) => {
@@ -131,13 +227,13 @@
         if (result !== 0) return result;
         return a.name.localeCompare(b.name, 'ko');
       },
-      sum: (a, b) => {
-        const result = compareNumericAsc(a.sum, b.sum);
+      weightedSum: (a, b) => {
+        const result = compareNumericAsc(a.weightedSum, b.weightedSum);
         if (result !== 0) return result;
         return a.name.localeCompare(b.name, 'ko');
       },
-      average: (a, b) => {
-        const result = compareNumericAsc(a.average, b.average);
+      weightedAverage: (a, b) => {
+        const result = compareNumericAsc(a.weightedAverage, b.weightedAverage);
         if (result !== 0) return result;
         return a.name.localeCompare(b.name, 'ko');
       },
@@ -233,6 +329,8 @@
           subjectGrades: Array(SUBJECTS.length).fill('-'),
           sum: totalScore,
           average: averageScore,
+          weightedSum: 0,
+          weightedAverage: 0,
           averageGradeValue: null,
           averageGradeText: '-',
           overallRank: 0
@@ -297,12 +395,12 @@
 
     function assignOverallRanks(students) {
       if (!students.length) return;
-      const ordered = [...students].sort((a, b) => b.sum - a.sum);
+      const ordered = [...students].sort((a, b) => b.weightedSum - a.weightedSum);
       let previousScore = null;
       let previousRank = 0;
 
       ordered.forEach((student, index) => {
-        const score = student.sum;
+        const score = student.weightedSum;
         const isTie = previousScore !== null && Math.abs(previousScore - score) < 1e-6;
         const rank = isTie ? previousRank : index + 1;
         student.overallRank = rank;
@@ -330,6 +428,137 @@
       });
     }
 
+    function applyWeights(students) {
+      if (!Array.isArray(students) || !students.length) return;
+      const sanitizedWeights = subjectWeights.map(value => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric) || numeric < 0) return 0;
+        return numeric;
+      });
+      const totalWeight = sanitizedWeights.reduce((sum, value) => sum + value, 0);
+
+      students.forEach(student => {
+        const weightedSum = student.subjectAverages.reduce((sum, score, index) => {
+          const weight = sanitizedWeights[index] ?? 0;
+          if (!Number.isFinite(score) || !Number.isFinite(weight)) return sum;
+          return sum + score * weight;
+        }, 0);
+
+        student.weightedSum = weightedSum;
+        student.weightedAverage = totalWeight > 0 ? weightedSum / totalWeight : null;
+      });
+    }
+
+    function calculateGradeCutlines(students) {
+      if (!Array.isArray(students) || !students.length) {
+        return SUBJECTS.map(() => ({}));
+      }
+
+      return SUBJECTS.map((_, subjectIndex) => {
+        const ordered = [...students].sort((a, b) => b.subjectAverages[subjectIndex] - a.subjectAverages[subjectIndex]);
+        const gradeSlices = computeGradeSlices(ordered.length);
+        const cutlines = {};
+
+        gradeSlices.forEach(slice => {
+          const sliceStudents = ordered.slice(slice.startRank - 1, slice.endRank);
+          if (!sliceStudents.length) return;
+          const lowestScore = sliceStudents[sliceStudents.length - 1].subjectAverages[subjectIndex];
+          cutlines[slice.grade] = lowestScore;
+        });
+
+        return cutlines;
+      });
+    }
+
+    function renderGradeCutTable(students) {
+      const container = document.getElementById('gradeCutContainer');
+      const head = document.getElementById('gradeCutHead');
+      const body = document.getElementById('gradeCutBody');
+      if (!container || !head || !body) return;
+
+      head.innerHTML = '';
+      body.innerHTML = '';
+
+      if (!students.length) {
+        container.hidden = true;
+        return;
+      }
+
+      const gradeCutlines = calculateGradeCutlines(students);
+      const headRow = document.createElement('tr');
+      const titleTh = document.createElement('th');
+      titleTh.textContent = '등급컷';
+      headRow.appendChild(titleTh);
+      SUBJECTS.forEach(subject => {
+        const th = document.createElement('th');
+        th.textContent = subject;
+        headRow.appendChild(th);
+      });
+      head.appendChild(headRow);
+
+      GRADE_LEVELS.forEach(level => {
+        const tr = document.createElement('tr');
+        const gradeCell = document.createElement('td');
+        gradeCell.textContent = `${level}등급`;
+        tr.appendChild(gradeCell);
+
+        SUBJECTS.forEach((_, subjectIndex) => {
+          const td = document.createElement('td');
+          const score = gradeCutlines[subjectIndex]?.[level];
+          td.textContent = Number.isFinite(score) ? formatNumber(score, 2) : '-';
+          tr.appendChild(td);
+        });
+
+        body.appendChild(tr);
+      });
+
+      container.hidden = false;
+    }
+
+    function onWeightChanged() {
+      if (!currentStudents.length) return;
+      applyWeights(currentStudents);
+      assignOverallRanks(currentStudents);
+      renderSummary(currentStudents);
+      renderGradeCutTable(currentStudents);
+      const targetSortKey = SORT_HANDLERS[currentSortKey] ? currentSortKey : 'overallRank';
+      sortStudents(targetSortKey);
+    }
+
+    function createWeightControls() {
+      const container = document.getElementById('weightControls');
+      if (!container) return;
+
+      container.innerHTML = '';
+      SUBJECTS.forEach((subject, index) => {
+        const group = document.createElement('div');
+        group.className = 'weight-group';
+
+        const label = document.createElement('label');
+        const inputId = `weight-${index}`;
+        label.setAttribute('for', inputId);
+        label.textContent = `${subject} 가중치`;
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.id = inputId;
+        input.min = '0';
+        input.step = '0.1';
+        input.value = subjectWeights[index];
+        input.addEventListener('input', () => {
+          const rawValue = Number(input.value);
+          subjectWeights[index] = Number.isFinite(rawValue) && rawValue >= 0 ? rawValue : 0;
+          onWeightChanged();
+        });
+
+        group.appendChild(label);
+        group.appendChild(input);
+        container.appendChild(group);
+      });
+
+      container.classList.remove('hidden');
+    }
+
     function createHeaderCell(label, sortKey) {
       const th = document.createElement('th');
       const labelSpan = document.createElement('span');
@@ -338,7 +567,7 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'align-button';
-      button.textContent = 'A→Z';
+      button.innerHTML = '<span aria-hidden="true">↕</span>';
       button.title = `${label} 정렬`;
       button.setAttribute('aria-label', `${label} 정렬`);
       button.addEventListener('click', () => sortStudents(sortKey));
@@ -348,8 +577,10 @@
 
     function sortStudents(sortKey) {
       if (!Array.isArray(currentStudents) || currentStudents.length === 0) return;
-      const comparator = SORT_HANDLERS[sortKey];
+      const key = SORT_HANDLERS[sortKey] ? sortKey : 'overallRank';
+      const comparator = SORT_HANDLERS[key];
       if (typeof comparator !== 'function') return;
+      currentSortKey = key;
       currentStudents.sort(comparator);
       renderTableRows(currentStudents);
     }
@@ -362,8 +593,8 @@
         { label: '전체 등수', sortKey: 'overallRank' },
         { label: '이름', sortKey: 'name' },
         { label: '학번', sortKey: 'studentId' },
-        { label: '합계', sortKey: 'sum' },
-        { label: '평균', sortKey: 'average' },
+        { label: '가중치 합계', sortKey: 'weightedSum' },
+        { label: '가중치 평균', sortKey: 'weightedAverage' },
         { label: '등급 평균', sortKey: 'averageGrade' }
       ];
       baseHeaders.forEach(({ label, sortKey }) => {
@@ -395,11 +626,11 @@
         row.appendChild(idCell);
 
         const sumCell = document.createElement('td');
-        sumCell.textContent = formatNumber(student.sum, 1);
+        sumCell.textContent = formatNumber(student.weightedSum, 2);
         row.appendChild(sumCell);
 
         const avgCell = document.createElement('td');
-        avgCell.textContent = formatNumber(student.average, 2);
+        avgCell.textContent = formatNumber(student.weightedAverage, 2);
         row.appendChild(avgCell);
 
         const avgGradeCell = document.createElement('td');
@@ -428,13 +659,8 @@
       const summary = document.getElementById('analysisSummary');
       summary.innerHTML = '';
       if (!students.length) return;
-      const overallAverage = students.reduce((sum, student) => sum + student.average, 0) / students.length;
-      const highestAverage = students.reduce((max, student) => Math.max(max, student.average), 0);
-
       const items = [
-        { label: '총 학생 수', value: `${students.length.toLocaleString('ko-KR')}명` },
-        { label: '전체 평균', value: `${formatNumber(overallAverage, 2)}점` },
-        { label: '최고 평균', value: `${formatNumber(highestAverage, 2)}점` }
+        { label: '총 학생 수', value: `${students.length.toLocaleString('ko-KR')}명` }
       ];
 
       items.forEach(({ label, value }) => {
@@ -470,12 +696,16 @@
         return;
       }
 
-      assignSubjectGrades(students);
-      assignAverageGrades(students);
-      assignOverallRanks(students);
+      currentStudents = students;
+      subjectWeights = SUBJECTS.map(() => 1);
+      assignSubjectGrades(currentStudents);
+      assignAverageGrades(currentStudents);
+      applyWeights(currentStudents);
+      assignOverallRanks(currentStudents);
       buildTableHeader();
-      renderSummary(students);
-      currentStudents = [...students];
+      renderSummary(currentStudents);
+      renderGradeCutTable(currentStudents);
+      createWeightControls();
       sortStudents('overallRank');
 
       emptyState.hidden = true;
