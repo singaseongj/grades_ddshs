@@ -230,7 +230,7 @@
   </div>
 
   <script>
-    const SUBJECTS = ['공통국어','공통수학','공통영어','한국사','통합사회','통합과학'];
+    const SUBJECTS = ['공통국어','공통수학','공통영어','통합사회','통합과학','융합탐구','대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학'];
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const GRADE_LEVELS = [1, 2, 3, 4, 5];
     const STORAGE_KEY = 'grades:studentDataset';
@@ -275,7 +275,7 @@
       SORT_HANDLERS[`subject-${index}`] = (a, b) => {
         const scoreCompare = compareNumericDesc(a.subjectAverages[index], b.subjectAverages[index]);
         if (scoreCompare !== 0) return scoreCompare;
-        const gradeCompare = compareNumericAsc(extractGradeValue(a.subjectGrades[index]), extractGradeValue(b.subjectGrades[index]));
+        const gradeCompare = compareNumericAsc(a.subjectGrades[index], b.subjectGrades[index]);
         if (gradeCompare !== 0) return gradeCompare;
         return a.name.localeCompare(b.name, 'ko');
       };
@@ -342,23 +342,17 @@
       return Number.isFinite(numeric) ? numeric : null;
     }
 
-    function extractGradeValue(gradeText) {
-      if (typeof gradeText !== 'string') return null;
-      const match = gradeText.match(/(\d+)/);
-      return match ? Number(match[1]) : null;
-    }
-
     function calculateSubjectAverage(student, index) {
       const terms = [student.semester1, student.semester2, student.semester3];
       const scores = [];
       terms.forEach(term => {
         if (!Array.isArray(term) || term.length <= index) return;
-        const score = Number(term[index]);
+        const score = term[index];
         if (Number.isFinite(score)) {
           scores.push(score);
         }
       });
-      if (scores.length === 0) return 0;
+      if (scores.length === 0) return null;
       const total = scores.reduce((sum, value) => sum + value, 0);
       return total / scores.length;
     }
@@ -367,18 +361,20 @@
       return Object.entries(dataset).map(([name, info]) => {
         const studentId = toFiniteNumber(info.number);
         const subjectAverages = SUBJECTS.map((_, idx) => calculateSubjectAverage(info, idx));
-        const totalScore = subjectAverages.reduce((sum, value) => sum + value, 0);
-        const averageScore = SUBJECTS.length > 0 ? totalScore / SUBJECTS.length : 0;
+        const validScores = subjectAverages.filter(value => Number.isFinite(value));
+        const totalScore = validScores.reduce((sum, value) => sum + value, 0);
+        const averageScore = validScores.length > 0 ? totalScore / validScores.length : null;
         return {
           key: `${name}__${info.number ?? ''}`,
           name,
           studentId,
           subjectAverages,
-          subjectGrades: Array(SUBJECTS.length).fill('-'),
+          subjectGrades: Array(SUBJECTS.length).fill(null),
+          subjectRanks: Array(SUBJECTS.length).fill(null),
           sum: totalScore,
           average: averageScore,
           weightedSum: 0,
-          weightedAverage: 0,
+          weightedAverage: null,
           averageGradeValue: null,
           averageGradeText: '-',
           overallRank: 0
@@ -419,7 +415,9 @@
     function assignSubjectGrades(students) {
       if (!students.length) return;
       SUBJECTS.forEach((_, subjectIndex) => {
-        const ordered = [...students].sort((a, b) => b.subjectAverages[subjectIndex] - a.subjectAverages[subjectIndex]);
+        const candidates = students.filter(student => Number.isFinite(student.subjectAverages[subjectIndex]));
+        if (!candidates.length) return;
+        const ordered = [...candidates].sort((a, b) => b.subjectAverages[subjectIndex] - a.subjectAverages[subjectIndex]);
         const gradeSlices = computeGradeSlices(ordered.length);
         let previousScore = null;
         let previousRank = 0;
@@ -430,12 +428,14 @@
           const isTie = previousScore !== null && Math.abs(previousScore - score) < 1e-6;
           const rank = isTie ? previousRank : index + 1;
           const slice = gradeSlices.find(range => rank >= range.startRank && rank <= range.endRank) || gradeSlices[gradeSlices.length - 1];
-          const gradeValue = slice ? `${slice.grade}등급` : '-';
-          student.subjectGrades[subjectIndex] = isTie && previousGrade ? previousGrade : gradeValue;
+          const gradeValue = slice ? slice.grade : null;
+          const finalGrade = isTie && previousGrade !== null ? previousGrade : gradeValue;
+          student.subjectGrades[subjectIndex] = finalGrade;
+          student.subjectRanks[subjectIndex] = rank;
           if (!isTie) {
             previousScore = score;
             previousRank = rank;
-            previousGrade = student.subjectGrades[subjectIndex];
+            previousGrade = finalGrade;
           }
         });
       });
@@ -461,9 +461,7 @@
 
     function assignAverageGrades(students) {
       students.forEach(student => {
-        const gradeValues = student.subjectGrades
-          .map(extractGradeValue)
-          .filter(value => Number.isFinite(value));
+        const gradeValues = student.subjectGrades.filter(value => Number.isFinite(value));
         if (!gradeValues.length) {
           student.averageGradeValue = null;
           student.averageGradeText = '-';
@@ -483,17 +481,19 @@
         if (!Number.isFinite(numeric) || numeric < 0) return 0;
         return numeric;
       });
-      const totalWeight = sanitizedWeights.reduce((sum, value) => sum + value, 0);
 
       students.forEach(student => {
-        const weightedSum = student.subjectAverages.reduce((sum, score, index) => {
+        let weightedSum = 0;
+        let appliedWeight = 0;
+        student.subjectAverages.forEach((score, index) => {
           const weight = sanitizedWeights[index] ?? 0;
-          if (!Number.isFinite(score) || !Number.isFinite(weight)) return sum;
-          return sum + score * weight;
-        }, 0);
+          if (!Number.isFinite(score) || weight <= 0) return;
+          weightedSum += score * weight;
+          appliedWeight += weight;
+        });
 
         student.weightedSum = weightedSum;
-        student.weightedAverage = totalWeight > 0 ? weightedSum / totalWeight : null;
+        student.weightedAverage = appliedWeight > 0 ? weightedSum / appliedWeight : null;
       });
     }
 
@@ -503,7 +503,9 @@
       }
 
       return SUBJECTS.map((_, subjectIndex) => {
-        const ordered = [...students].sort((a, b) => b.subjectAverages[subjectIndex] - a.subjectAverages[subjectIndex]);
+        const candidates = students.filter(student => Number.isFinite(student.subjectAverages[subjectIndex]));
+        if (!candidates.length) return {};
+        const ordered = [...candidates].sort((a, b) => b.subjectAverages[subjectIndex] - a.subjectAverages[subjectIndex]);
         const gradeSlices = computeGradeSlices(ordered.length);
         const cutlines = {};
 
@@ -511,7 +513,9 @@
           const sliceStudents = ordered.slice(slice.startRank - 1, slice.endRank);
           if (!sliceStudents.length) return;
           const lowestScore = sliceStudents[sliceStudents.length - 1].subjectAverages[subjectIndex];
-          cutlines[slice.grade] = lowestScore;
+          if (Number.isFinite(lowestScore)) {
+            cutlines[slice.grade] = lowestScore;
+          }
         });
 
         return cutlines;
@@ -649,7 +653,7 @@
         row.appendChild(createHeaderCell(label, sortKey));
       });
       SUBJECTS.forEach((subject, index) => {
-        const th = createHeaderCell(`${subject} / 등급`, `subject-${index}`);
+        const th = createHeaderCell(`${subject} (등수) / 등급`, `subject-${index}`);
         row.appendChild(th);
       });
       head.appendChild(row);
@@ -695,8 +699,10 @@
           td.classList.add('grade-cell');
           const averageScore = student.subjectAverages[index];
           const scoreText = formatScoreDisplay(averageScore);
-          const gradeText = grade && grade !== '-' ? grade : '-';
-          td.textContent = `${scoreText} / ${gradeText}`;
+          const rankValue = student.subjectRanks?.[index];
+          const rankText = Number.isFinite(rankValue) ? rankValue : '-';
+          const gradeText = Number.isFinite(grade) ? grade : '-';
+          td.textContent = `${scoreText} (${rankText}) / ${gradeText}`;
           if (Number.isFinite(averageScore)) {
             td.title = `${SUBJECTS[index]} 평균: ${formatNumber(averageScore, 1)}점`;
           }
