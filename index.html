@@ -84,17 +84,39 @@
 
   <script>
     const TERM_SUBJECTS = {
-      semester1: ['공통국어','공통수학','공통영어','통합사회','통합과학','융합탐구'],
-      semester2: ['공통국어','공통수학','공통영어','통합사회','통합과학','융합탐구','대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학'],
-      semester3: ['공통국어','공통수학','공통영어','통합사회','통합과학','융합탐구','대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학']
+      semester1: ['공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1'],
+      semester2: ['공통수학','대수','미적분','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회']
     };
-    const SUBJECTS = ['공통국어','공통수학','공통영어','통합사회','통합과학','융합탐구','대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학'];
+    const SUBJECT_DISPLAY_NAMES = {
+      '공통국어1': '공통국어 (1학기)',
+      '공통국어2': '공통국어 (2학기)',
+      '공통영어1': '공통영어 (1학기)',
+      '공통영어2': '공통영어 (2학기)',
+      '통합사회1': '통합사회 (1학기)',
+      '통합사회': '통합사회 (2학기)',
+      '공통수학1': '공통수학1 (1학기)',
+      '공통수학2': '공통수학2 (1학기)',
+      '공통수학': '공통수학 (2학기)',
+      '통합과학1': '통합과학1 (1학기)',
+      '통합과학2': '통합과학2 (1학기)',
+      '융합탐구': '융합탐구',
+      '대수': '대수 (2학기)',
+      '미적분': '미적분 (2학기)',
+      '역학과 에너지': '역학과 에너지 (2학기)',
+      '화학': '화학 (2학기)',
+      '생명과학': '생명과학 (2학기)',
+      '지구과학': '지구과학 (2학기)',
+      '정보과학': '정보과학 (2학기)'
+    };
+    const SUBJECTS = [
+      '공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1',
+      '공통수학','대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회'
+    ];
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const STORAGE_KEY = 'grades:studentDataset';
     const EXAM_STEPS = [
-      { key: 'semester1', label: '1회', prefix: 'S1_' },
-      { key: 'semester2', label: '2회', prefix: 'S2_' },
-      { key: 'semester3', label: '3회', prefix: 'S3_' }
+      { key: 'semester1', label: '1학기', prefix: 'S1_' },
+      { key: 'semester2', label: '2학기', prefix: 'S2_' }
     ];
     const TERM_SUBJECT_COLUMNS = EXAM_STEPS.reduce((acc, step) => {
       const subjects = TERM_SUBJECTS[step.key] || [];
@@ -110,11 +132,11 @@
       return acc;
     }, {});
     const CHART_GROUPS = [
-      { id: 'koreanChart', title: '공통국어 성적 추이', subjects: ['공통국어'] },
-      { id: 'mathChart', title: '수학 성적 추이', subjects: ['공통수학','대수','미적분'] },
-      { id: 'englishChart', title: '공통영어 성적 추이', subjects: ['공통영어'] },
-      { id: 'socialChart', title: '통합사회 성적 추이', subjects: ['통합사회'] },
-      { id: 'scienceChart', title: '과학 성적 추이', subjects: ['통합과학','융합탐구','화학','생명과학','지구과학'] }
+      { id: 'koreanChart', title: '공통국어 성적 추이', subjects: ['공통국어1','공통국어2'] },
+      { id: 'mathChart', title: '수학 성적 추이', subjects: ['공통수학1','공통수학2','공통수학','대수','미적분'] },
+      { id: 'englishChart', title: '공통영어 성적 추이', subjects: ['공통영어1','공통영어2'] },
+      { id: 'socialChart', title: '통합사회 성적 추이', subjects: ['통합사회1','통합사회'] },
+      { id: 'scienceChart', title: '과학 성적 추이', subjects: ['통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'] }
     ];
     buildScoresTableHeader();
     document.getElementById('btnTemplate').addEventListener('click', downloadTemplate);
@@ -330,9 +352,8 @@
 
       const sampleStudent = ['홍길동','101'];
       const sampleScoresByTerm = {
-        semester1: [92, 88, 94, 90, 93, 91],
-        semester2: [95, 91, 96, 92, 95, 93, 94, 97, 96, 95, 94, 93, 92],
-        semester3: [97, 94, 98, 94, 96, 95, 96, 98, 97, 96, 95, 94, 93]
+        semester1: [95, 94, 93, 92, 91, 96, 95, 94],
+        semester2: [94, 95, 93, 92, 91, 90, 89, 88, 87, 96, 95, 94]
       };
       EXAM_STEPS.forEach(({ key }) => {
         const subjects = TERM_SUBJECTS[key] || [];
@@ -391,14 +412,12 @@
 
             const s1 = buildTermScores('semester1');
             const s2 = buildTermScores('semester2');
-            const s3 = buildTermScores('semester3');
 
             const hasValid = arr => Array.isArray(arr) && arr.some(value => Number.isFinite(value));
             newData[name] = {
               number: number || '',
               semester1: hasValid(s1) ? s1 : Array(SUBJECTS.length).fill(null),
-              semester2: hasValid(s2) ? s2 : Array(SUBJECTS.length).fill(null),
-              semester3: hasValid(s3) ? s3 : Array(SUBJECTS.length).fill(null)
+              semester2: hasValid(s2) ? s2 : Array(SUBJECTS.length).fill(null)
             };
           });
 
@@ -508,18 +527,22 @@
       document.getElementById('displayName').textContent = searchName;
       document.getElementById('displayNumber').textContent = student.number ?? '';
       studentInfo.classList.add('active');
-      chartsSection.style.display = 'grid';
-      dataTable.style.display = 'block';
       createCharts(searchName, student);
-      updateTable(searchName, student);
+      const hasRows = updateTable(searchName, student);
+      dataTable.style.display = hasRows ? 'block' : 'none';
     }
 
     function createCharts(name, student) {
+      let visibleCount = 0;
       CHART_GROUPS.forEach((group, groupIndex) => {
         const { id, title, subjects } = group;
-        if (charts[id]) charts[id].destroy();
+        if (charts[id]) {
+          charts[id].destroy();
+          charts[id] = null;
+        }
         const canvas = document.getElementById(id);
         if (!canvas) return;
+        const container = canvas.closest('.chart-container');
         const ctx = canvas.getContext('2d');
 
         const labels = [];
@@ -543,6 +566,12 @@
           data.push(averageGrade);
         });
 
+        if (!data.length) {
+          if (container) container.style.display = 'none';
+          return;
+        }
+
+        if (container) container.style.display = '';
         charts[id] = new Chart(ctx, {
           type: 'line',
           data: {
@@ -585,11 +614,17 @@
                 },
                 title: { display: true, text: '등급' }
               },
-              x: { title: { display: true, text: '고사 차시' } }
+              x: { title: { display: true, text: '학기' } }
             }
           }
         });
+        visibleCount += 1;
       });
+
+      const chartsSection = document.getElementById('chartsSection');
+      if (chartsSection) {
+        chartsSection.style.display = visibleCount > 0 ? 'grid' : 'none';
+      }
     }
 
     function getChartColor(index, alpha = 1) {
@@ -606,6 +641,7 @@
     function updateTable(name, student) {
       const tbody = document.getElementById('scoresBody');
       tbody.innerHTML = '';
+      let hasRow = false;
 
       EXAM_STEPS.forEach(({ key, label }) => {
         const termScores = student?.[key];
@@ -615,6 +651,7 @@
         if (!hasAnyValid) return;
 
         const row = tbody.insertRow();
+        hasRow = true;
         row.insertCell(0).textContent = label;
 
         let total = 0;
@@ -644,6 +681,8 @@
           averageCell.textContent = '-';
         }
       });
+
+      return hasRow;
     }
 
     // Enter로 검색
@@ -657,12 +696,13 @@
       headerRow.innerHTML = '';
 
       const examHeader = document.createElement('th');
-      examHeader.textContent = '고사 성적';
+      examHeader.textContent = '학기 성적';
       headerRow.appendChild(examHeader);
 
       SUBJECTS.forEach(subject => {
         const th = document.createElement('th');
-        th.textContent = `${subject} (등수) / 등급`;
+        const displayName = SUBJECT_DISPLAY_NAMES[subject] || subject;
+        th.textContent = `${displayName} (등수) / 등급`;
         headerRow.appendChild(th);
       });
 

@@ -86,12 +86,23 @@
     .grade-cell { font-weight: 600; color: #0d47a1; }
     .grade-cell span { display: block; font-size: 12px; color: #5f6368; font-weight: 400; }
 
+    .analysis-table {
+      width: 100%;
+      table-layout: fixed;
+    }
     .analysis-table th {
       position: relative;
       text-align: center;
-      white-space: nowrap;
+      white-space: normal;
+      word-break: keep-all;
       padding-right: 28px;
       vertical-align: bottom;
+      line-height: 1.4;
+    }
+    .analysis-table td {
+      word-break: keep-all;
+      white-space: normal;
+      line-height: 1.45;
     }
 
     .analysis-table th span {
@@ -230,7 +241,31 @@
   </div>
 
   <script>
-    const SUBJECTS = ['공통국어','공통수학','공통영어','통합사회','통합과학','융합탐구','대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학'];
+    const SUBJECTS = [
+      '공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1',
+      '공통수학','대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회'
+    ];
+    const SUBJECT_DISPLAY_NAMES = {
+      '공통국어1': '공통국어 (1학기)',
+      '공통국어2': '공통국어 (2학기)',
+      '공통영어1': '공통영어 (1학기)',
+      '공통영어2': '공통영어 (2학기)',
+      '통합사회1': '통합사회 (1학기)',
+      '통합사회': '통합사회 (2학기)',
+      '공통수학1': '공통수학1 (1학기)',
+      '공통수학2': '공통수학2 (1학기)',
+      '공통수학': '공통수학 (2학기)',
+      '통합과학1': '통합과학1 (1학기)',
+      '통합과학2': '통합과학2 (1학기)',
+      '융합탐구': '융합탐구',
+      '대수': '대수 (2학기)',
+      '미적분': '미적분 (2학기)',
+      '역학과 에너지': '역학과 에너지 (2학기)',
+      '화학': '화학 (2학기)',
+      '생명과학': '생명과학 (2학기)',
+      '지구과학': '지구과학 (2학기)',
+      '정보과학': '정보과학 (2학기)'
+    };
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const GRADE_LEVELS = [1, 2, 3, 4, 5];
     const STORAGE_KEY = 'grades:studentDataset';
@@ -343,7 +378,7 @@
     }
 
     function calculateSubjectAverage(student, index) {
-      const terms = [student.semester1, student.semester2, student.semester3];
+      const terms = [student.semester1, student.semester2];
       const scores = [];
       terms.forEach(term => {
         if (!Array.isArray(term) || term.length <= index) return;
@@ -543,7 +578,7 @@
       headRow.appendChild(titleTh);
       SUBJECTS.forEach(subject => {
         const th = document.createElement('th');
-        th.textContent = subject;
+        th.textContent = SUBJECT_DISPLAY_NAMES[subject] || subject;
         headRow.appendChild(th);
       });
       head.appendChild(headRow);
@@ -589,7 +624,8 @@
         const label = document.createElement('label');
         const inputId = `weight-${index}`;
         label.setAttribute('for', inputId);
-        label.textContent = `${subject} 가중치`;
+        const displayName = SUBJECT_DISPLAY_NAMES[subject] || subject;
+        label.textContent = `${displayName} 가중치`;
 
         const input = document.createElement('input');
         input.type = 'number';
@@ -653,7 +689,8 @@
         row.appendChild(createHeaderCell(label, sortKey));
       });
       SUBJECTS.forEach((subject, index) => {
-        const th = createHeaderCell(`${subject} (등수) / 등급`, `subject-${index}`);
+        const displayName = SUBJECT_DISPLAY_NAMES[subject] || subject;
+        const th = createHeaderCell(`${displayName} (등수) / 등급`, `subject-${index}`);
         row.appendChild(th);
       });
       head.appendChild(row);
@@ -704,7 +741,8 @@
           const gradeText = Number.isFinite(grade) ? grade : '-';
           td.textContent = `${scoreText} (${rankText}) / ${gradeText}`;
           if (Number.isFinite(averageScore)) {
-            td.title = `${SUBJECTS[index]} 평균: ${formatNumber(averageScore, 1)}점`;
+            const subjectLabel = SUBJECT_DISPLAY_NAMES[SUBJECTS[index]] || SUBJECTS[index];
+            td.title = `${subjectLabel} 평균: ${formatNumber(averageScore, 1)}점`;
           }
           row.appendChild(td);
         });
