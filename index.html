@@ -58,19 +58,16 @@
         <div class="chart-title">공통국어 성적 추이</div><canvas id="koreanChart"></canvas>
       </div>
       <div class="chart-container">
-        <div class="chart-title">공통수학 성적 추이</div><canvas id="mathChart"></canvas>
+        <div class="chart-title">수학 성적 추이</div><canvas id="mathChart"></canvas>
       </div>
       <div class="chart-container">
         <div class="chart-title">공통영어 성적 추이</div><canvas id="englishChart"></canvas>
       </div>
       <div class="chart-container">
-        <div class="chart-title">한국사 성적 추이</div><canvas id="historyChart"></canvas>
-      </div>
-      <div class="chart-container">
         <div class="chart-title">통합사회 성적 추이</div><canvas id="socialChart"></canvas>
       </div>
       <div class="chart-container">
-        <div class="chart-title">통합과학 성적 추이</div><canvas id="scienceChart"></canvas>
+        <div class="chart-title">과학 성적 추이</div><canvas id="scienceChart"></canvas>
       </div>
     </div>
 
@@ -78,16 +75,7 @@
       <h3>📋 상세 성적 데이터</h3>
       <table id="scoresTable">
         <thead>
-          <tr>
-            <th>고사 성적</th>
-            <th>공통국어 (등수) / 등급</th>
-            <th>공통수학 (등수) / 등급</th>
-            <th>공통영어 (등수) / 등급</th>
-            <th>한국사 (등수) / 등급</th>
-            <th>통합사회 (등수) / 등급</th>
-            <th>통합과학 (등수) / 등급</th>
-            <th>평균 (등수)</th>
-          </tr>
+          <tr id="scoresHeader"></tr>
         </thead>
         <tbody id="scoresBody"></tbody>
       </table>
@@ -95,14 +83,40 @@
   </div>
 
   <script>
-    const SUBJECTS = ['공통국어','공통수학','공통영어','한국사','통합사회','통합과학'];
+    const TERM_SUBJECTS = {
+      semester1: ['공통국어','공통수학','공통영어','통합사회','통합과학','융합탐구'],
+      semester2: ['공통국어','공통수학','공통영어','통합사회','통합과학','융합탐구','대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학'],
+      semester3: ['공통국어','공통수학','공통영어','통합사회','통합과학','융합탐구','대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학']
+    };
+    const SUBJECTS = ['공통국어','공통수학','공통영어','통합사회','통합과학','융합탐구','대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학'];
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const STORAGE_KEY = 'grades:studentDataset';
     const EXAM_STEPS = [
-      { key: 'semester1', label: '1회' },
-      { key: 'semester2', label: '2회' },
-      { key: 'semester3', label: '3회' }
+      { key: 'semester1', label: '1회', prefix: 'S1_' },
+      { key: 'semester2', label: '2회', prefix: 'S2_' },
+      { key: 'semester3', label: '3회', prefix: 'S3_' }
     ];
+    const TERM_SUBJECT_COLUMNS = EXAM_STEPS.reduce((acc, step) => {
+      const subjects = TERM_SUBJECTS[step.key] || [];
+      const mapping = {};
+      SUBJECTS.forEach(subject => {
+        if (subjects.includes(subject)) {
+          mapping[subject] = `${step.prefix}${subject}`;
+        } else {
+          mapping[subject] = null;
+        }
+      });
+      acc[step.key] = mapping;
+      return acc;
+    }, {});
+    const CHART_GROUPS = [
+      { id: 'koreanChart', title: '공통국어 성적 추이', subjects: ['공통국어'] },
+      { id: 'mathChart', title: '수학 성적 추이', subjects: ['공통수학','대수','미적분'] },
+      { id: 'englishChart', title: '공통영어 성적 추이', subjects: ['공통영어'] },
+      { id: 'socialChart', title: '통합사회 성적 추이', subjects: ['통합사회'] },
+      { id: 'scienceChart', title: '과학 성적 추이', subjects: ['통합과학','융합탐구','화학','생명과학','지구과학'] }
+    ];
+    buildScoresTableHeader();
     document.getElementById('btnTemplate').addEventListener('click', downloadTemplate);
 
     function extractStudentId(row) {
@@ -221,7 +235,7 @@
           Object.entries(studentData).forEach(([name, info]) => {
             const termScores = info?.[key];
             if (!Array.isArray(termScores) || termScores.length <= subjectIndex) return;
-            const score = Number(termScores[subjectIndex]);
+            const score = termScores[subjectIndex];
             if (!Number.isFinite(score)) return;
             entries.push({ name, score });
           });
@@ -256,9 +270,8 @@
           let sum = 0;
           let hasValid = false;
           termScores.forEach(score => {
-            const numeric = Number(score);
-            if (Number.isFinite(numeric)) {
-              sum += numeric;
+            if (Number.isFinite(score)) {
+              sum += score;
               hasValid = true;
             }
           });
@@ -289,7 +302,7 @@
     function hasValidScoreForSubject(student, examKey, subjectIndex) {
       const term = student?.[examKey];
       if (!Array.isArray(term) || term.length <= subjectIndex) return false;
-      const value = Number(term[subjectIndex]);
+      const value = term[subjectIndex];
       return Number.isFinite(value);
     }
 
@@ -310,20 +323,30 @@
       if (evt) evt.preventDefault();
 
       const headers = ['이름','학번'];
-      ['S1','S2','S3'].forEach(term => {
-        SUBJECTS.forEach(subject => headers.push(`${term}_${subject}`));
+      EXAM_STEPS.forEach(({ key, prefix }) => {
+        const subjects = TERM_SUBJECTS[key] || [];
+        subjects.forEach(subject => headers.push(`${prefix}${subject}`));
       });
 
       const sampleStudent = ['홍길동','101'];
-      const sampleScores = [
-        [92, 88, 94, 85, 90, 93],
-        [95, 91, 96, 88, 92, 95],
-        [97, 94, 98, 90, 95, 97]
-      ].flat();
-      sampleStudent.push(...sampleScores);
+      const sampleScoresByTerm = {
+        semester1: [92, 88, 94, 90, 93, 91],
+        semester2: [95, 91, 96, 92, 95, 93, 94, 97, 96, 95, 94, 93, 92],
+        semester3: [97, 94, 98, 94, 96, 95, 96, 98, 97, 96, 95, 94, 93]
+      };
+      EXAM_STEPS.forEach(({ key }) => {
+        const subjects = TERM_SUBJECTS[key] || [];
+        const samples = sampleScoresByTerm[key] || [];
+        subjects.forEach((_, index) => {
+          sampleStudent.push(samples[index] ?? '');
+        });
+      });
 
       const blankRow = ['김철수','102'];
-      blankRow.push(...Array(SUBJECTS.length * 3).fill(''));
+      EXAM_STEPS.forEach(({ key }) => {
+        const subjects = TERM_SUBJECTS[key] || [];
+        blankRow.push(...Array(subjects.length).fill(''));
+      });
 
       const worksheet = XLSX.utils.aoa_to_sheet([
         headers,
@@ -356,25 +379,26 @@
             if (!name) return;
             const number = extractStudentId(row);
 
-            const s1 = [
-              toNum(row['S1_공통국어']), toNum(row['S1_공통수학']), toNum(row['S1_공통영어']),
-              toNum(row['S1_한국사']),   toNum(row['S1_통합사회']), toNum(row['S1_통합과학'])
-            ];
-            const s2 = [
-              toNum(row['S2_공통국어']), toNum(row['S2_공통수학']), toNum(row['S2_공통영어']),
-              toNum(row['S2_한국사']),   toNum(row['S2_통합사회']), toNum(row['S2_통합과학'])
-            ];
-            const s3 = [
-              toNum(row['S3_공통국어']), toNum(row['S3_공통수학']), toNum(row['S3_공통영어']),
-              toNum(row['S3_한국사']),   toNum(row['S3_통합사회']), toNum(row['S3_통합과학'])
-            ];
+            const buildTermScores = termKey => {
+              const mapping = TERM_SUBJECT_COLUMNS[termKey] || {};
+              return SUBJECTS.map(subject => {
+                const columnKey = mapping[subject];
+                if (!columnKey) return null;
+                const numeric = toNum(row[columnKey]);
+                return Number.isFinite(numeric) ? numeric : null;
+              });
+            };
 
-            const valid = arr => arr.some(v => v !== '' && !isNaN(v));
+            const s1 = buildTermScores('semester1');
+            const s2 = buildTermScores('semester2');
+            const s3 = buildTermScores('semester3');
+
+            const hasValid = arr => Array.isArray(arr) && arr.some(value => Number.isFinite(value));
             newData[name] = {
               number: number || '',
-              semester1: valid(s1) ? s1.map(n => (isNaN(n)?0:n)) : Array(SUBJECTS.length).fill(0),
-              semester2: valid(s2) ? s2.map(n => (isNaN(n)?0:n)) : Array(SUBJECTS.length).fill(0),
-              semester3: valid(s3) ? s3.map(n => (isNaN(n)?0:n)) : []
+              semester1: hasValid(s1) ? s1 : Array(SUBJECTS.length).fill(null),
+              semester2: hasValid(s2) ? s2 : Array(SUBJECTS.length).fill(null),
+              semester3: hasValid(s3) ? s3 : Array(SUBJECTS.length).fill(null)
             };
           });
 
@@ -450,7 +474,7 @@
 
     function toNum(v) {
       const n = Number(v);
-      return isNaN(n) ? '' : n;
+      return Number.isFinite(n) ? n : null;
     }
 
     const storedDataset = loadStoredDataset();
@@ -491,31 +515,43 @@
     }
 
     function createCharts(name, student) {
-      const chartIds = ['koreanChart','mathChart','englishChart','historyChart','socialChart','scienceChart'];
-
-      chartIds.forEach((chartId, subjectIndex) => {
-        if (charts[chartId]) charts[chartId].destroy();
-        const ctx = document.getElementById(chartId).getContext('2d');
+      CHART_GROUPS.forEach((group, groupIndex) => {
+        const { id, title, subjects } = group;
+        if (charts[id]) charts[id].destroy();
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
 
         const labels = [];
         const data = [];
         EXAM_STEPS.forEach(({ key, label }) => {
-          if (!hasValidScoreForSubject(student, key, subjectIndex)) return;
+          const gradeValues = [];
+          subjects.forEach(subjectName => {
+            const subjectIndex = SUBJECTS.indexOf(subjectName);
+            if (subjectIndex === -1) return;
+            if (!hasValidScoreForSubject(student, key, subjectIndex)) return;
+            const rankingInfo = getRankingInfo(key, subjectIndex, name);
+            const gradeValue = rankingInfo?.grade;
+            if (Number.isFinite(gradeValue)) {
+              gradeValues.push(gradeValue);
+            }
+          });
+
+          if (!gradeValues.length) return;
+          const averageGrade = gradeValues.reduce((sum, value) => sum + value, 0) / gradeValues.length;
           labels.push(label);
-          const rankingInfo = getRankingInfo(key, subjectIndex, name);
-          const gradeValue = rankingInfo?.grade;
-          data.push(Number.isFinite(gradeValue) ? gradeValue : null);
+          data.push(averageGrade);
         });
 
-        charts[chartId] = new Chart(ctx, {
+        charts[id] = new Chart(ctx, {
           type: 'line',
           data: {
             labels,
             datasets: [{
-              label: `${SUBJECTS[subjectIndex]} 등급`,
+              label: `${title.replace(/ 성적 추이$/, '')} 평균 등급`,
               data,
-              borderColor: getChartColor(subjectIndex),
-              backgroundColor: getChartColor(subjectIndex, 0.2),
+              borderColor: getChartColor(groupIndex),
+              backgroundColor: getChartColor(groupIndex, 0.2),
               borderWidth: 2,
               tension: 0.1,
               pointRadius: 5,
@@ -533,7 +569,7 @@
                   label: (context) => {
                     const grade = context.parsed.y;
                     if (!Number.isFinite(grade)) return '등급 정보 없음';
-                    return `${grade}등급`;
+                    return `${grade.toFixed(2)}등급`;
                   }
                 }
               }
@@ -562,10 +598,9 @@
         `rgba(54, 162, 235, ${alpha})`,
         `rgba(255, 206, 86, ${alpha})`,
         `rgba(75, 192, 192, ${alpha})`,
-        `rgba(153, 102, 255, ${alpha})`,
-        `rgba(255, 159, 64, ${alpha})`
+        `rgba(153, 102, 255, ${alpha})`
       ];
-      return colors[index];
+      return colors[index % colors.length];
     }
 
     function updateTable(name, student) {
@@ -586,7 +621,7 @@
         let count = 0;
 
         SUBJECTS.forEach((_, subjectIndex) => {
-          const score = Number(termScores[subjectIndex]);
+          const score = termScores[subjectIndex];
           if (Number.isFinite(score)) {
             total += score;
             count += 1;
@@ -615,6 +650,26 @@
     document.getElementById('studentName').addEventListener('keypress', function(e) {
       if (e.key === 'Enter') searchStudent();
     });
+
+    function buildScoresTableHeader() {
+      const headerRow = document.getElementById('scoresHeader');
+      if (!headerRow) return;
+      headerRow.innerHTML = '';
+
+      const examHeader = document.createElement('th');
+      examHeader.textContent = '고사 성적';
+      headerRow.appendChild(examHeader);
+
+      SUBJECTS.forEach(subject => {
+        const th = document.createElement('th');
+        th.textContent = `${subject} (등수) / 등급`;
+        headerRow.appendChild(th);
+      });
+
+      const averageHeader = document.createElement('th');
+      averageHeader.textContent = '평균 (등수)';
+      headerRow.appendChild(averageHeader);
+    }
   </script>
 </body>
 </html>
