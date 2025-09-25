@@ -6,7 +6,8 @@
   <title>전체 학생 성적 분석</title>
   <link rel="stylesheet" href="../style.css" />
   <style>
-    .analysis-container { margin-top: 20px; }
+    html, body { width: 100%; min-width: 100%; overflow-x: auto; }
+    .analysis-container { margin-top: 20px; max-width: none; width: 100%; }
     .analysis-container h1 { margin-bottom: 10px; }
     .analysis-container .description { color: #555; margin-bottom: 25px; }
 
@@ -85,6 +86,15 @@
     .grade-note { color: #5f6368; margin-bottom: 12px; }
     .grade-cell { font-weight: 600; color: #0d47a1; }
     .grade-cell span { display: block; font-size: 12px; color: #5f6368; font-weight: 400; }
+
+    .analysis-table-wrapper,
+    .grade-cut-wrapper {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .analysis-table-wrapper table { min-width: 1200px; }
+    .grade-cut-wrapper table { min-width: 720px; }
 
     .analysis-table {
       width: 100%;
@@ -226,16 +236,20 @@
       <div class="analysis-summary" id="analysisSummary"></div>
       <div id="weightControls" class="weight-controls hidden"></div>
       <p class="grade-note">※ 등급은 1~5등급 비율 (10% / 24% / 32% / 24% / 10%)을 기반으로 과목별 성적 순위를 계산하여 산출됩니다.</p>
-      <table class="analysis-table">
-        <thead id="analysisHead"></thead>
-        <tbody id="analysisBody"></tbody>
-      </table>
+      <div class="analysis-table-wrapper">
+        <table class="analysis-table">
+          <thead id="analysisHead"></thead>
+          <tbody id="analysisBody"></tbody>
+        </table>
+      </div>
       <div id="gradeCutContainer" class="grade-cut-container" hidden>
         <h2>과목별 등급</h2>
-        <table class="grade-cut-table">
-          <thead id="gradeCutHead"></thead>
-          <tbody id="gradeCutBody"></tbody>
-        </table>
+        <div class="grade-cut-wrapper">
+          <table class="grade-cut-table">
+            <thead id="gradeCutHead"></thead>
+            <tbody id="gradeCutBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
