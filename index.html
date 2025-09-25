@@ -644,7 +644,7 @@
                       const examKey = examKeyOrder[context.dataIndex];
                       const rankingInfo = getExamGradeSumRanking(examKey, name);
                       const rankText = Number.isFinite(rankingInfo?.rank) ? `${rankingInfo.rank}등` : '-';
-                      return `${context.label}, ${grade.toFixed(2)}등급 / (${rankText})`;
+                      return `${grade.toFixed(2)}등급 / (${rankText})`;
                     }
                     return `${grade.toFixed(2)}등급`;
                   }
