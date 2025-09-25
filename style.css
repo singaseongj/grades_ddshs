@@ -128,6 +128,7 @@ input[type="file"]#xlsxInput { display: none; }
 .charts-section { display: grid; grid-template-columns: repeat(2,1fr); gap: 30px; margin-top: 30px; }
 .chart-container { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 .chart-title { text-align: center; font-weight: bold; margin-bottom: 15px; color: #333; font-size: 18px; }
+.chart-caption { margin-top: 12px; text-align: center; font-size: 14px; color: #555; line-height: 1.4; }
 canvas { max-height: 250px; }
 .error-message { color: #d32f2f; margin-top: 10px; display: none; }
 
