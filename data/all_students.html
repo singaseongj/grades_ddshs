@@ -257,7 +257,7 @@
   <script>
     const SUBJECTS = [
       '공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1',
-      '공통수학','대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회'
+      '대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회'
     ];
     const SUBJECT_DISPLAY_NAMES = {
       '공통국어1': '공통국어 (1학기)',
@@ -268,7 +268,6 @@
       '통합사회': '통합사회 (2학기)',
       '공통수학1': '공통수학1 (1학기)',
       '공통수학2': '공통수학2 (1학기)',
-      '공통수학': '공통수학 (2학기)',
       '통합과학1': '통합과학1 (1학기)',
       '통합과학2': '통합과학2 (1학기)',
       '융합탐구': '융합탐구',
@@ -280,6 +279,7 @@
       '지구과학': '지구과학 (2학기)',
       '정보과학': '정보과학 (2학기)'
     };
+    const SUBJECTS_WITHOUT_GRADES = new Set(['융합탐구']);
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const GRADE_LEVELS = [1, 2, 3, 4, 5];
     const STORAGE_KEY = 'grades:studentDataset';
@@ -463,11 +463,12 @@
 
     function assignSubjectGrades(students) {
       if (!students.length) return;
-      SUBJECTS.forEach((_, subjectIndex) => {
+      SUBJECTS.forEach((subjectName, subjectIndex) => {
+        const skipGrade = SUBJECTS_WITHOUT_GRADES.has(subjectName);
         const candidates = students.filter(student => Number.isFinite(student.subjectAverages[subjectIndex]));
         if (!candidates.length) return;
         const ordered = [...candidates].sort((a, b) => b.subjectAverages[subjectIndex] - a.subjectAverages[subjectIndex]);
-        const gradeSlices = computeGradeSlices(ordered.length);
+        const gradeSlices = skipGrade ? [] : computeGradeSlices(ordered.length);
         let previousScore = null;
         let previousRank = 0;
         let previousGrade = null;
@@ -479,7 +480,7 @@
           const slice = gradeSlices.find(range => rank >= range.startRank && rank <= range.endRank) || gradeSlices[gradeSlices.length - 1];
           const gradeValue = slice ? slice.grade : null;
           const finalGrade = isTie && previousGrade !== null ? previousGrade : gradeValue;
-          student.subjectGrades[subjectIndex] = finalGrade;
+          student.subjectGrades[subjectIndex] = skipGrade ? null : finalGrade;
           student.subjectRanks[subjectIndex] = rank;
           if (!isTie) {
             previousScore = score;
@@ -551,7 +552,10 @@
         return SUBJECTS.map(() => ({}));
       }
 
-      return SUBJECTS.map((_, subjectIndex) => {
+      return SUBJECTS.map((subjectName, subjectIndex) => {
+        if (SUBJECTS_WITHOUT_GRADES.has(subjectName)) {
+          return {};
+        }
         const candidates = students.filter(student => Number.isFinite(student.subjectAverages[subjectIndex]));
         if (!candidates.length) return {};
         const ordered = [...candidates].sort((a, b) => b.subjectAverages[subjectIndex] - a.subjectAverages[subjectIndex]);
@@ -704,7 +708,9 @@
       });
       SUBJECTS.forEach((subject, index) => {
         const displayName = SUBJECT_DISPLAY_NAMES[subject] || subject;
-        const th = createHeaderCell(`${displayName} (등수) / 등급`, `subject-${index}`);
+        const hasGrade = !SUBJECTS_WITHOUT_GRADES.has(subject);
+        const label = hasGrade ? `${displayName} (등수) / 등급` : `${displayName} (등수)`;
+        const th = createHeaderCell(label, `subject-${index}`);
         row.appendChild(th);
       });
       head.appendChild(row);
@@ -752,8 +758,14 @@
           const scoreText = formatScoreDisplay(averageScore);
           const rankValue = student.subjectRanks?.[index];
           const rankText = Number.isFinite(rankValue) ? rankValue : '-';
-          const gradeText = Number.isFinite(grade) ? grade : '-';
-          td.textContent = `${scoreText} (${rankText}) / ${gradeText}`;
+          const subjectName = SUBJECTS[index];
+          const hasGrade = !SUBJECTS_WITHOUT_GRADES.has(subjectName);
+          if (hasGrade) {
+            const gradeText = Number.isFinite(grade) ? grade : '-';
+            td.textContent = `${scoreText} (${rankText}) / ${gradeText}`;
+          } else {
+            td.textContent = `${scoreText} (${rankText})`;
+          }
           if (Number.isFinite(averageScore)) {
             const subjectLabel = SUBJECT_DISPLAY_NAMES[SUBJECTS[index]] || SUBJECTS[index];
             td.title = `${subjectLabel} 평균: ${formatNumber(averageScore, 1)}점`;

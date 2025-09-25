@@ -83,7 +83,7 @@
   <script>
     const TERM_SUBJECTS = {
       semester1: ['공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1'],
-      semester2: ['공통수학','대수','미적분','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회']
+      semester2: ['대수','미적분','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회']
     };
     const SUBJECT_DISPLAY_NAMES = {
       '공통국어1': '공통국어 (1학기)',
@@ -94,7 +94,6 @@
       '통합사회': '통합사회 (2학기)',
       '공통수학1': '공통수학1 (1학기)',
       '공통수학2': '공통수학2 (1학기)',
-      '공통수학': '공통수학 (2학기)',
       '통합과학1': '통합과학1 (1학기)',
       '통합과학2': '통합과학2 (1학기)',
       '융합탐구': '융합탐구',
@@ -108,8 +107,9 @@
     };
     const SUBJECTS = [
       '공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1',
-      '공통수학','대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회'
+      '대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회'
     ];
+    const SUBJECTS_WITHOUT_GRADES = new Set(['융합탐구']);
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const STORAGE_KEY = 'grades:studentDataset';
     const EXAM_STEPS = [
@@ -132,10 +132,10 @@
     const CHART_GROUPS = [
       { id: 'overallChart', title: '전체 성적 추이', subjects: SUBJECTS },
       { id: 'koreanChart', title: '공통국어 성적 추이', subjects: ['공통국어1','공통국어2'] },
-      { id: 'mathChart', title: '수학 성적 추이', subjects: ['공통수학1','공통수학2','공통수학','대수','미적분'] },
+      { id: 'mathChart', title: '수학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분'] },
       { id: 'englishChart', title: '공통영어 성적 추이', subjects: ['공통영어1','공통영어2'] },
       { id: 'socialChart', title: '통합사회 성적 추이', subjects: ['통합사회1','통합사회'] },
-      { id: 'scienceChart', title: '과학 성적 추이', subjects: ['통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'] }
+      { id: 'scienceChart', title: '과학 (통합과학1, 통합과학2, 융합탐구, 역학과 에너지, 화학, 생명과학, 지구과학, 정보과학) 성적 추이', subjects: ['통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'] }
     ];
     document.getElementById('btnTemplate').addEventListener('click', downloadTemplate);
 
@@ -252,7 +252,8 @@
       examGradeSumRankings = createEmptyExamRankings();
 
       EXAM_STEPS.forEach(({ key }) => {
-        SUBJECTS.forEach((_, subjectIndex) => {
+        SUBJECTS.forEach((subjectName, subjectIndex) => {
+          const skipGrade = SUBJECTS_WITHOUT_GRADES.has(subjectName);
           const rankingMap = gradeRankings[key][subjectIndex];
           const entries = [];
 
@@ -278,7 +279,7 @@
             const slice = gradeSlices.find(range => rank >= range.startRank && rank <= range.endRank) || gradeSlices[gradeSlices.length - 1];
             const gradeValue = slice ? slice.grade : null;
             const finalGrade = isTie && previousGrade !== null ? previousGrade : gradeValue;
-            rankingMap.set(entry.name, { rank, grade: finalGrade });
+            rankingMap.set(entry.name, { rank, grade: skipGrade ? null : finalGrade });
             if (!isTie) {
               previousScore = entry.score;
               previousRank = rank;
@@ -730,6 +731,8 @@
     function getSubjectDetail(name, student, subjectIndex) {
       let hasData = false;
       let displayText = '-';
+      const subjectName = SUBJECTS[subjectIndex];
+      const hideGrade = SUBJECTS_WITHOUT_GRADES.has(subjectName);
 
       for (const { key } of EXAM_STEPS) {
         if (!hasValidScoreForSubject(student, key, subjectIndex)) continue;
@@ -739,8 +742,8 @@
         const rankValue = Number.isFinite(rankingInfo.rank) ? rankingInfo.rank : '-';
         const gradeValue = Number.isFinite(rankingInfo.grade) ? rankingInfo.grade : '-';
         const scoreText = Number.isFinite(rawScore) ? rawScore.toFixed(1) : '-';
-        displayText = `${scoreText} (${rankValue}) / ${gradeValue}`;
-        hasData = Number.isFinite(rawScore) || Number.isFinite(rankingInfo.rank) || Number.isFinite(rankingInfo.grade);
+        displayText = hideGrade ? `${scoreText} (${rankValue})` : `${scoreText} (${rankValue}) / ${gradeValue}`;
+        hasData = Number.isFinite(rawScore) || Number.isFinite(rankingInfo.rank) || (!hideGrade && Number.isFinite(rankingInfo.grade));
         break;
       }
 
