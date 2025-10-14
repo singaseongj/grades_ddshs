@@ -251,6 +251,24 @@
           </table>
         </div>
       </div>
+      <div id="subjectStatsContainer" class="grade-cut-container" hidden>
+        <h2>과목별 평균/표준편차</h2>
+        <div class="grade-cut-wrapper">
+          <table class="grade-cut-table">
+            <thead id="subjectStatsHead"></thead>
+            <tbody id="subjectStatsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="classAverageContainer" class="grade-cut-container" hidden>
+        <h2>반 평균</h2>
+        <div class="grade-cut-wrapper">
+          <table class="grade-cut-table">
+            <thead id="classAverageHead"></thead>
+            <tbody id="classAverageBody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -409,6 +427,13 @@
     function buildStudentSummaries(dataset) {
       return Object.entries(dataset).map(([name, info]) => {
         const studentId = toFiniteNumber(info.number);
+        let studentIdText = '';
+        if (info?.number !== undefined && info?.number !== null) {
+          studentIdText = String(info.number).trim();
+        }
+        if (!studentIdText && Number.isFinite(studentId)) {
+          studentIdText = String(studentId);
+        }
         const subjectAverages = SUBJECTS.map((_, idx) => calculateSubjectAverage(info, idx));
         const validScores = subjectAverages.filter(value => Number.isFinite(value));
         const totalScore = validScores.reduce((sum, value) => sum + value, 0);
@@ -417,6 +442,7 @@
           key: `${name}__${info.number ?? ''}`,
           name,
           studentId,
+          studentIdText,
           subjectAverages,
           subjectGrades: Array(SUBJECTS.length).fill(null),
           subjectRanks: Array(SUBJECTS.length).fill(null),
@@ -620,12 +646,173 @@
       container.hidden = false;
     }
 
+    function calculateSubjectStats(students) {
+      if (!Array.isArray(students) || !students.length) {
+        return SUBJECTS.map(() => ({ mean: null, stdDev: null }));
+      }
+
+      return SUBJECTS.map((_, subjectIndex) => {
+        const scores = students
+          .map(student => student.subjectAverages[subjectIndex])
+          .filter(score => Number.isFinite(score));
+        if (!scores.length) {
+          return { mean: null, stdDev: null };
+        }
+        const mean = scores.reduce((sum, value) => sum + value, 0) / scores.length;
+        const variance = scores.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / scores.length;
+        const stdDev = Math.sqrt(variance);
+        return { mean, stdDev };
+      });
+    }
+
+    function renderSubjectStatsTable(students) {
+      const container = document.getElementById('subjectStatsContainer');
+      const head = document.getElementById('subjectStatsHead');
+      const body = document.getElementById('subjectStatsBody');
+      if (!container || !head || !body) return;
+
+      head.innerHTML = '';
+      body.innerHTML = '';
+
+      if (!students.length) {
+        container.hidden = true;
+        return;
+      }
+
+      const stats = calculateSubjectStats(students);
+      const hasData = stats.some(stat => Number.isFinite(stat.mean));
+      if (!hasData) {
+        container.hidden = true;
+        return;
+      }
+
+      const headRow = document.createElement('tr');
+      const titleTh = document.createElement('th');
+      titleTh.textContent = '구분';
+      headRow.appendChild(titleTh);
+      SUBJECTS.forEach(subject => {
+        const th = document.createElement('th');
+        th.textContent = SUBJECT_DISPLAY_NAMES[subject] || subject;
+        headRow.appendChild(th);
+      });
+      head.appendChild(headRow);
+
+      const meanRow = document.createElement('tr');
+      const meanLabel = document.createElement('td');
+      meanLabel.textContent = '평균';
+      meanRow.appendChild(meanLabel);
+
+      stats.forEach(stat => {
+        const td = document.createElement('td');
+        td.textContent = Number.isFinite(stat.mean) ? formatNumber(stat.mean, 2) : '-';
+        meanRow.appendChild(td);
+      });
+      body.appendChild(meanRow);
+
+      const stdRow = document.createElement('tr');
+      const stdLabel = document.createElement('td');
+      stdLabel.textContent = '표준편차';
+      stdRow.appendChild(stdLabel);
+
+      stats.forEach(stat => {
+        const td = document.createElement('td');
+        td.textContent = Number.isFinite(stat.stdDev) ? formatNumber(stat.stdDev, 2) : '-';
+        stdRow.appendChild(td);
+      });
+      body.appendChild(stdRow);
+
+      container.hidden = false;
+    }
+
+    function extractClassNumber(student) {
+      const rawId = typeof student.studentIdText === 'string' ? student.studentIdText : '';
+      const digits = rawId.replace(/\D/g, '');
+      if (digits.length < 2) return null;
+      const classDigit = digits.charAt(1);
+      return classDigit ? Number(classDigit) : null;
+    }
+
+    function calculateClassAverages(students) {
+      const classScores = new Map();
+
+      students.forEach(student => {
+        const classNumber = extractClassNumber(student);
+        if (!Number.isFinite(classNumber)) return;
+        const score = Number.isFinite(student.weightedAverage)
+          ? student.weightedAverage
+          : Number.isFinite(student.average)
+            ? student.average
+            : null;
+        if (!Number.isFinite(score)) return;
+        if (!classScores.has(classNumber)) {
+          classScores.set(classNumber, []);
+        }
+        classScores.get(classNumber).push(score);
+      });
+
+      return Array.from(classScores.entries())
+        .map(([classNumber, scores]) => {
+          const total = scores.reduce((sum, value) => sum + value, 0);
+          return {
+            classNumber,
+            average: scores.length ? total / scores.length : null
+          };
+        })
+        .filter(entry => Number.isFinite(entry.average))
+        .sort((a, b) => a.classNumber - b.classNumber);
+    }
+
+    function renderClassAverageTable(students) {
+      const container = document.getElementById('classAverageContainer');
+      const head = document.getElementById('classAverageHead');
+      const body = document.getElementById('classAverageBody');
+      if (!container || !head || !body) return;
+
+      head.innerHTML = '';
+      body.innerHTML = '';
+
+      if (!students.length) {
+        container.hidden = true;
+        return;
+      }
+
+      const averages = calculateClassAverages(students);
+      if (!averages.length) {
+        container.hidden = true;
+        return;
+      }
+
+      const headRow = document.createElement('tr');
+      const classTh = document.createElement('th');
+      classTh.textContent = '반';
+      headRow.appendChild(classTh);
+      const averageTh = document.createElement('th');
+      averageTh.textContent = '평균 점수';
+      headRow.appendChild(averageTh);
+      head.appendChild(headRow);
+
+      averages.forEach(entry => {
+        const tr = document.createElement('tr');
+        const classTd = document.createElement('td');
+        classTd.textContent = `${entry.classNumber}반`;
+        tr.appendChild(classTd);
+        const averageTd = document.createElement('td');
+        averageTd.textContent = formatNumber(entry.average, 2);
+        tr.appendChild(averageTd);
+        body.appendChild(tr);
+      });
+
+      container.hidden = false;
+    }
+
     function onWeightChanged() {
       if (!currentStudents.length) return;
       applyWeights(currentStudents);
       assignOverallRanks(currentStudents);
       renderSummary(currentStudents);
       renderGradeCutTable(currentStudents);
+      renderSubjectStatsTable(currentStudents);
+      renderClassAverageTable(currentStudents);
       const targetSortKey = SORT_HANDLERS[currentSortKey] ? currentSortKey : 'overallRank';
       sortStudents(targetSortKey);
     }
@@ -827,6 +1014,8 @@
       buildTableHeader();
       renderSummary(currentStudents);
       renderGradeCutTable(currentStudents);
+      renderSubjectStatsTable(currentStudents);
+      renderClassAverageTable(currentStudents);
       createWeightControls();
       sortStudents('overallRank');
 
