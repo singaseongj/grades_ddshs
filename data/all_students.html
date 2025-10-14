@@ -732,33 +732,35 @@
       return classDigit ? Number(classDigit) : null;
     }
 
-    function calculateClassAverages(students) {
+    function calculateClassSubjectAverages(students) {
       const classScores = new Map();
 
       students.forEach(student => {
         const classNumber = extractClassNumber(student);
         if (!Number.isFinite(classNumber)) return;
-        const score = Number.isFinite(student.weightedAverage)
-          ? student.weightedAverage
-          : Number.isFinite(student.average)
-            ? student.average
-            : null;
-        if (!Number.isFinite(score)) return;
         if (!classScores.has(classNumber)) {
-          classScores.set(classNumber, []);
+          classScores.set(classNumber, SUBJECTS.map(() => []));
         }
-        classScores.get(classNumber).push(score);
+        const subjectLists = classScores.get(classNumber);
+        student.subjectAverages.forEach((score, index) => {
+          if (!Number.isFinite(score)) return;
+          subjectLists[index].push(score);
+        });
       });
 
       return Array.from(classScores.entries())
-        .map(([classNumber, scores]) => {
-          const total = scores.reduce((sum, value) => sum + value, 0);
+        .map(([classNumber, subjectScores]) => {
+          const subjectAverages = subjectScores.map(scores => {
+            if (!scores.length) return null;
+            const total = scores.reduce((sum, value) => sum + value, 0);
+            return total / scores.length;
+          });
           return {
             classNumber,
-            average: scores.length ? total / scores.length : null
+            subjectAverages
           };
         })
-        .filter(entry => Number.isFinite(entry.average))
+        .filter(entry => entry.subjectAverages.some(score => Number.isFinite(score)))
         .sort((a, b) => a.classNumber - b.classNumber);
     }
 
@@ -776,7 +778,7 @@
         return;
       }
 
-      const averages = calculateClassAverages(students);
+      const averages = calculateClassSubjectAverages(students);
       if (!averages.length) {
         container.hidden = true;
         return;
@@ -786,9 +788,11 @@
       const classTh = document.createElement('th');
       classTh.textContent = '반';
       headRow.appendChild(classTh);
-      const averageTh = document.createElement('th');
-      averageTh.textContent = '평균 점수';
-      headRow.appendChild(averageTh);
+      SUBJECTS.forEach(subject => {
+        const th = document.createElement('th');
+        th.textContent = SUBJECT_DISPLAY_NAMES[subject] || subject;
+        headRow.appendChild(th);
+      });
       head.appendChild(headRow);
 
       averages.forEach(entry => {
@@ -796,9 +800,11 @@
         const classTd = document.createElement('td');
         classTd.textContent = `${entry.classNumber}반`;
         tr.appendChild(classTd);
-        const averageTd = document.createElement('td');
-        averageTd.textContent = formatNumber(entry.average, 2);
-        tr.appendChild(averageTd);
+        entry.subjectAverages.forEach(score => {
+          const td = document.createElement('td');
+          td.textContent = Number.isFinite(score) ? formatNumber(score, 2) : '-';
+          tr.appendChild(td);
+        });
         body.appendChild(tr);
       });
 
