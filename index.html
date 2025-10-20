@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>학생 성적 추이 분석 for DDSHS v1.0</title>
+  <title>학생 성적 추이 분석 for DDSHS v1.2</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- SheetJS (XLSX) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -16,7 +16,7 @@
         <span aria-hidden="true">🏠</span>
         <span class="visually-hidden">홈으로 이동</span>
       </a>
-      <h1>📊 학생별 성적 추이 분석 시스템 for DDSHS v1.0</h1>
+      <h1>📊 학생별 성적 추이 분석 시스템 for DDSHS v1.2</h1>
     </header>
 
     <div class="search-section">
@@ -115,7 +115,7 @@
       '공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1',
       '대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회2'
     ];
-    const SUBJECTS_WITHOUT_GRADES = new Set(['융합탐구']);
+    const SUBJECTS_WITHOUT_GRADES = new Set();
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const STORAGE_KEY = 'grades:studentDataset';
     const EXAM_STEPS = [
@@ -146,8 +146,16 @@
       acc[step.key] = mapping;
       return acc;
     }, {});
+    const OVERALL_CHART_SUBJECTS = {
+      semester1: ['공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1'],
+      semester2: ['대수','미적분','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회2']
+    };
+    const OVERALL_CHART_SUBJECT_LIST = Array.from(new Set([
+      ...OVERALL_CHART_SUBJECTS.semester1,
+      ...OVERALL_CHART_SUBJECTS.semester2
+    ]));
     const CHART_GROUPS = [
-      { id: 'overallChart', title: '전체 성적 추이', subjects: SUBJECTS },
+      { id: 'overallChart', title: '전체 성적 추이', subjects: OVERALL_CHART_SUBJECT_LIST, perExamSubjects: OVERALL_CHART_SUBJECTS },
       { id: 'koreanChart', title: '공통국어 성적 추이', subjects: ['공통국어1','공통국어2'] },
       { id: 'mathChart', title: '수학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분'] },
       { id: 'englishChart', title: '공통영어 성적 추이', subjects: ['공통영어1','공통영어2'] },
@@ -427,10 +435,11 @@
       return examRanking.get(name) ?? null;
     }
 
-    function buildExamGroupStats(subjects) {
+    function buildExamGroupStats(subjects, perExamSubjects = null) {
       const statsByExam = {};
       EXAM_STEPS.forEach(({ key }) => {
-        const allowedSubjects = new Set(TERM_SUBJECTS[key] || []);
+        const allowedList = perExamSubjects?.[key] || TERM_SUBJECTS[key] || [];
+        const allowedSubjects = new Set(allowedList);
         const entries = [];
 
         Object.entries(studentData).forEach(([studentName]) => {
@@ -721,7 +730,10 @@
         const data = [];
         const examKeyOrder = [];
         const rankingByExam = {};
-        const statsByExam = buildExamGroupStats(relevantSubjects.map(item => item.name));
+        const statsByExam = buildExamGroupStats(
+          relevantSubjects.map(item => item.name),
+          group.perExamSubjects
+        );
 
         EXAM_STEPS.forEach(({ key, label }) => {
           const statsMap = statsByExam[key];
@@ -731,7 +743,7 @@
           labels.push(label);
           data.push(selfStats.average);
           examKeyOrder.push(key);
-          const termSubjects = new Set(TERM_SUBJECTS[key] || []);
+          const termSubjects = new Set((group.perExamSubjects && group.perExamSubjects[key]) || TERM_SUBJECTS[key] || []);
           const relevantTermSubjects = relevantSubjects.filter(({ name: subjectName }) => termSubjects.has(subjectName));
           let subjectRank = null;
           if (relevantTermSubjects.length === 1) {
