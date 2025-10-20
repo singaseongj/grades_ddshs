@@ -62,6 +62,7 @@
       </div>
       <div class="chart-container">
         <div class="chart-title">수학 성적 추이</div><canvas id="mathChart"></canvas>
+        <p class="chart-caption">* 공통수학1, 공통수학2, 대수, 미적분</p>
       </div>
       <div class="chart-container">
         <div class="chart-title">공통영어 성적 추이</div><canvas id="englishChart"></canvas>
@@ -72,6 +73,10 @@
       <div class="chart-container">
         <div class="chart-title">과학 성적 추이</div><canvas id="scienceChart"></canvas>
         <p class="chart-caption">* 통합과학1, 통합과학2, 융합탐구, 역학과 에너지, 화학, 생명과학, 지구과학</p>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">수과학 성적 추이</div><canvas id="stemChart"></canvas>
+        <p class="chart-caption">* 공통수학1, 공통수학2, 대수, 미적분, 통합과학1, 통합과학2, 융합탐구, 역학과 에너지, 화학, 생명과학, 지구과학, 정보과학</p>
       </div>
     </div>
 
@@ -136,7 +141,8 @@
       { id: 'mathChart', title: '수학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분'] },
       { id: 'englishChart', title: '공통영어 성적 추이', subjects: ['공통영어1','공통영어2'] },
       { id: 'socialChart', title: '통합사회 성적 추이', subjects: ['통합사회1','통합사회'] },
-      { id: 'scienceChart', title: '과학 (통합과학1, 통합과학2, 융합탐구, 역학과 에너지, 화학, 생명과학, 지구과학, 정보과학) 성적 추이', subjects: ['통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'] }
+      { id: 'scienceChart', title: '과학 (통합과학1, 통합과학2, 융합탐구, 역학과 에너지, 화학, 생명과학, 지구과학, 정보과학) 성적 추이', subjects: ['통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'] },
+      { id: 'stemChart', title: '수과학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분','통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'] }
     ];
     document.getElementById('btnTemplate').addEventListener('click', downloadTemplate);
 
@@ -188,7 +194,6 @@
       studentData = {};
       gradeRankings = createEmptyRankings();
       examTotalRankings = createEmptyExamRankings();
-      examGradeSumRankings = createEmptyExamRankings();
       dataLoaded = false;
       clearStoredDataset();
       disableUIAfterReset();
@@ -201,7 +206,6 @@
     let charts = {};
     let gradeRankings = createEmptyRankings();
     let examTotalRankings = createEmptyExamRankings();
-    let examGradeSumRankings = createEmptyExamRankings();
 
     function createEmptyRankings() {
       const result = {};
@@ -250,7 +254,6 @@
     function recalculateGradeRankings() {
       gradeRankings = createEmptyRankings();
       examTotalRankings = createEmptyExamRankings();
-      examGradeSumRankings = createEmptyExamRankings();
 
       EXAM_STEPS.forEach(({ key }) => {
         SUBJECTS.forEach((subjectName, subjectIndex) => {
@@ -323,35 +326,6 @@
           }
         });
 
-        const gradeTotals = [];
-        Object.keys(studentData).forEach(name => {
-          let gradeSum = 0;
-          let hasGrade = false;
-          SUBJECTS.forEach((_, subjectIndex) => {
-            const info = gradeRankings[key]?.[subjectIndex]?.get(name);
-            if (info && Number.isFinite(info.grade)) {
-              gradeSum += info.grade;
-              hasGrade = true;
-            }
-          });
-          if (hasGrade) {
-            gradeTotals.push({ name, totalGrade: gradeSum });
-          }
-        });
-
-        gradeTotals.sort((a, b) => a.totalGrade - b.totalGrade);
-        let previousGradeTotal = null;
-        let previousGradeRank = 0;
-
-        gradeTotals.forEach((entry, index) => {
-          const isTie = previousGradeTotal !== null && Math.abs(previousGradeTotal - entry.totalGrade) < 1e-6;
-          const rank = isTie ? previousGradeRank : index + 1;
-          examGradeSumRankings[key].set(entry.name, { rank, totalGrade: entry.totalGrade });
-          if (!isTie) {
-            previousGradeTotal = entry.totalGrade;
-            previousGradeRank = rank;
-          }
-        });
       });
     }
 
@@ -374,10 +348,57 @@
       return examRanking.get(name) ?? null;
     }
 
-    function getExamGradeSumRanking(examKey, name) {
-      const gradeRanking = examGradeSumRankings?.[examKey];
-      if (!gradeRanking) return null;
-      return gradeRanking.get(name) ?? null;
+    function buildExamGroupStats(subjects) {
+      const statsByExam = {};
+      EXAM_STEPS.forEach(({ key }) => {
+        const allowedSubjects = new Set(TERM_SUBJECTS[key] || []);
+        const entries = [];
+
+        Object.entries(studentData).forEach(([studentName]) => {
+          const grades = [];
+          subjects.forEach(subjectName => {
+            if (allowedSubjects.size && !allowedSubjects.has(subjectName)) return;
+            const subjectIndex = SUBJECTS.indexOf(subjectName);
+            if (subjectIndex === -1) return;
+            const rankingInfo = getRankingInfo(key, subjectIndex, studentName);
+            const gradeValue = rankingInfo?.grade;
+            if (Number.isFinite(gradeValue)) {
+              grades.push(gradeValue);
+            }
+          });
+
+          if (grades.length) {
+            const average = grades.reduce((sum, value) => sum + value, 0) / grades.length;
+            entries.push({ name: studentName, average });
+          }
+        });
+
+        if (!entries.length) return;
+
+        entries.sort((a, b) => {
+          const diff = a.average - b.average;
+          if (Math.abs(diff) < 1e-6) return a.name.localeCompare(b.name, 'ko');
+          return diff;
+        });
+
+        let previousAverage = null;
+        let previousRank = 0;
+        const map = new Map();
+
+        entries.forEach((entry, index) => {
+          const isTie = previousAverage !== null && Math.abs(previousAverage - entry.average) < 1e-6;
+          const rank = isTie ? previousRank : index + 1;
+          map.set(entry.name, { average: entry.average, rank });
+          if (!isTie) {
+            previousAverage = entry.average;
+            previousRank = rank;
+          }
+        });
+
+        statsByExam[key] = map;
+      });
+
+      return statsByExam;
     }
 
     // === XLSX Template Export ===
@@ -588,24 +609,18 @@
         const labels = [];
         const data = [];
         const examKeyOrder = [];
-        EXAM_STEPS.forEach(({ key, label }) => {
-          const gradeValues = [];
-          subjects.forEach(subjectName => {
-            const subjectIndex = SUBJECTS.indexOf(subjectName);
-            if (subjectIndex === -1) return;
-            if (!hasValidScoreForSubject(student, key, subjectIndex)) return;
-            const rankingInfo = getRankingInfo(key, subjectIndex, name);
-            const gradeValue = rankingInfo?.grade;
-            if (Number.isFinite(gradeValue)) {
-              gradeValues.push(gradeValue);
-            }
-          });
+        const rankingByExam = {};
+        const statsByExam = buildExamGroupStats(subjects);
 
-          if (!gradeValues.length) return;
-          const averageGrade = gradeValues.reduce((sum, value) => sum + value, 0) / gradeValues.length;
+        EXAM_STEPS.forEach(({ key, label }) => {
+          const statsMap = statsByExam[key];
+          const selfStats = statsMap?.get(name);
+          if (!selfStats) return;
+
           labels.push(label);
-          data.push(averageGrade);
+          data.push(selfStats.average);
           examKeyOrder.push(key);
+          rankingByExam[key] = selfStats;
         });
 
         if (!data.length) {
@@ -640,13 +655,10 @@
                   label: (context) => {
                     const grade = context.parsed.y;
                     if (!Number.isFinite(grade)) return '등급 정보 없음';
-                    if (id === 'overallChart') {
-                      const examKey = examKeyOrder[context.dataIndex];
-                      const rankingInfo = getExamGradeSumRanking(examKey, name);
-                      const rankText = Number.isFinite(rankingInfo?.rank) ? `${rankingInfo.rank}등` : '-';
-                      return `${grade.toFixed(2)}등급 / (${rankText})`;
-                    }
-                    return `${grade.toFixed(2)}등급`;
+                    const examKey = examKeyOrder[context.dataIndex];
+                    const stats = rankingByExam[examKey];
+                    const rankText = Number.isFinite(stats?.rank) ? `${stats.rank}등` : '-';
+                    return `${grade.toFixed(2)}등급 / ${rankText}`;
                   }
                 }
               }
