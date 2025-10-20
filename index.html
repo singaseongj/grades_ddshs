@@ -89,7 +89,7 @@
   <script>
     const TERM_SUBJECTS = {
       semester1: ['공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1'],
-      semester2: ['대수','미적분','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회']
+      semester2: ['대수','미적분','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회2']
     };
     const SUBJECT_DISPLAY_NAMES = {
       '공통국어1': '공통국어 (1학기)',
@@ -97,7 +97,7 @@
       '공통영어1': '공통영어 (1학기)',
       '공통영어2': '공통영어 (2학기)',
       '통합사회1': '통합사회 (1학기)',
-      '통합사회': '통합사회 (2학기)',
+      '통합사회2': '통합사회 (2학기)',
       '공통수학1': '공통수학1 (1학기)',
       '공통수학2': '공통수학2 (1학기)',
       '통합과학1': '통합과학1 (1학기)',
@@ -113,7 +113,7 @@
     };
     const SUBJECTS = [
       '공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1',
-      '대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회'
+      '대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회2'
     ];
     const SUBJECTS_WITHOUT_GRADES = new Set(['융합탐구']);
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
@@ -122,6 +122,7 @@
       { key: 'semester1', label: '1학기', prefix: 'S1_' },
       { key: 'semester2', label: '2학기', prefix: 'S2_' }
     ];
+    const SUBJECT_COUNT = SUBJECTS.length;
     const TERM_SUBJECT_COLUMNS = EXAM_STEPS.reduce((acc, step) => {
       const subjects = TERM_SUBJECTS[step.key] || [];
       const mapping = {};
@@ -140,10 +141,75 @@
       { id: 'koreanChart', title: '공통국어 성적 추이', subjects: ['공통국어1','공통국어2'] },
       { id: 'mathChart', title: '수학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분'] },
       { id: 'englishChart', title: '공통영어 성적 추이', subjects: ['공통영어1','공통영어2'] },
-      { id: 'socialChart', title: '통합사회 성적 추이', subjects: ['통합사회1','통합사회'] },
+      { id: 'socialChart', title: '통합사회 성적 추이', subjects: ['통합사회1','통합사회2'] },
       { id: 'scienceChart', title: '과학 (통합과학1, 통합과학2, 융합탐구, 역학과 에너지, 화학, 생명과학, 지구과학, 정보과학) 성적 추이', subjects: ['통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'] },
       { id: 'stemChart', title: '수과학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분','통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'] }
     ];
+
+    function createEmptyTermSubjectAvailability() {
+      const result = {};
+      EXAM_STEPS.forEach(({ key }) => {
+        result[key] = Array(SUBJECT_COUNT).fill(false);
+      });
+      return result;
+    }
+
+    function computeTermSubjectAvailability(dataset) {
+      const availability = createEmptyTermSubjectAvailability();
+      if (!dataset || typeof dataset !== 'object') return availability;
+
+      Object.values(dataset).forEach(info => {
+        EXAM_STEPS.forEach(({ key }) => {
+          const termScores = info?.[key];
+          if (!Array.isArray(termScores)) return;
+          termScores.forEach((value, index) => {
+            if (Number.isFinite(value)) {
+              availability[key][index] = true;
+            }
+          });
+        });
+      });
+
+      return availability;
+    }
+
+    function deriveActiveSubjectIndices(availability) {
+      return SUBJECTS.map((_, index) => index).filter(index => {
+        return EXAM_STEPS.some(({ key }) => availability?.[key]?.[index]);
+      });
+    }
+
+    let termSubjectAvailability = createEmptyTermSubjectAvailability();
+    let activeSubjectIndices = [];
+    let activeSubjectIndexSet = new Set();
+
+    function updateSubjectAvailabilityFromDataset(dataset) {
+      termSubjectAvailability = computeTermSubjectAvailability(dataset);
+      activeSubjectIndices = deriveActiveSubjectIndices(termSubjectAvailability);
+      activeSubjectIndexSet = new Set(activeSubjectIndices);
+    }
+
+    function resetSubjectAvailability() {
+      termSubjectAvailability = createEmptyTermSubjectAvailability();
+      activeSubjectIndices = [];
+      activeSubjectIndexSet = new Set();
+    }
+
+    function isSubjectActive(subjectIndex) {
+      return activeSubjectIndexSet.has(subjectIndex);
+    }
+
+    function isSubjectAvailableForTerm(termKey, subjectIndex) {
+      return Boolean(termSubjectAvailability?.[termKey]?.[subjectIndex]);
+    }
+
+    function getActiveSubjectIndices() {
+      return activeSubjectIndices;
+    }
+
+    function getActiveSubjects() {
+      return activeSubjectIndices.map(index => SUBJECTS[index]);
+    }
     document.getElementById('btnTemplate').addEventListener('click', downloadTemplate);
 
     function extractStudentId(row) {
@@ -194,6 +260,7 @@
       studentData = {};
       gradeRankings = createEmptyRankings();
       examTotalRankings = createEmptyExamRankings();
+      resetSubjectAvailability();
       dataLoaded = false;
       clearStoredDataset();
       disableUIAfterReset();
@@ -257,6 +324,7 @@
 
       EXAM_STEPS.forEach(({ key }) => {
         SUBJECTS.forEach((subjectName, subjectIndex) => {
+          if (!isSubjectAvailableForTerm(key, subjectIndex)) return;
           const skipGrade = SUBJECTS_WITHOUT_GRADES.has(subjectName);
           const rankingMap = gradeRankings[key][subjectIndex];
           const entries = [];
@@ -298,7 +366,8 @@
           if (!Array.isArray(termScores)) return;
           let sum = 0;
           let hasValid = false;
-          termScores.forEach(score => {
+          termScores.forEach((score, index) => {
+            if (!isSubjectAvailableForTerm(key, index)) return;
             if (Number.isFinite(score)) {
               sum += score;
               hasValid = true;
@@ -360,6 +429,7 @@
             if (allowedSubjects.size && !allowedSubjects.has(subjectName)) return;
             const subjectIndex = SUBJECTS.indexOf(subjectName);
             if (subjectIndex === -1) return;
+            if (!isSubjectAvailableForTerm(key, subjectIndex)) return;
             const rankingInfo = getRankingInfo(key, subjectIndex, studentName);
             const gradeValue = rankingInfo?.grade;
             if (Number.isFinite(gradeValue)) {
@@ -488,6 +558,7 @@
             return;
           }
 
+          updateSubjectAvailabilityFromDataset(newData);
           studentData = newData;
           dataLoaded = true;
           persistStudentDataset(studentData);
@@ -559,6 +630,7 @@
 
     const storedDataset = loadStoredDataset();
     if (storedDataset && Object.keys(storedDataset).length > 0) {
+      updateSubjectAvailabilityFromDataset(storedDataset);
       studentData = storedDataset;
       dataLoaded = true;
       recalculateGradeRankings();
@@ -606,11 +678,20 @@
         const container = canvas.closest('.chart-container');
         const ctx = canvas.getContext('2d');
 
+        const relevantSubjects = (subjects || [])
+          .map(subjectName => ({ name: subjectName, index: SUBJECTS.indexOf(subjectName) }))
+          .filter(({ index }) => index !== -1 && isSubjectActive(index));
+
+        if (!relevantSubjects.length) {
+          if (container) container.style.display = 'none';
+          return;
+        }
+
         const labels = [];
         const data = [];
         const examKeyOrder = [];
         const rankingByExam = {};
-        const statsByExam = buildExamGroupStats(subjects);
+        const statsByExam = buildExamGroupStats(relevantSubjects.map(item => item.name));
 
         EXAM_STEPS.forEach(({ key, label }) => {
           const statsMap = statsByExam[key];
@@ -706,13 +787,19 @@
       let hasData = false;
       const chunkSize = 10;
 
-      for (let start = 0; start < SUBJECTS.length; start += chunkSize) {
-        const chunkSubjects = SUBJECTS.slice(start, start + chunkSize);
+      const activeIndices = getActiveSubjectIndices();
+      if (!activeIndices.length) {
+        return false;
+      }
+
+      for (let start = 0; start < activeIndices.length; start += chunkSize) {
+        const chunkIndices = activeIndices.slice(start, start + chunkSize);
         const table = document.createElement('table');
         const thead = table.createTHead();
         const headerRow = thead.insertRow();
 
-        chunkSubjects.forEach(subject => {
+        chunkIndices.forEach(subjectIndex => {
+          const subject = SUBJECTS[subjectIndex];
           const th = document.createElement('th');
           th.textContent = SUBJECT_DISPLAY_NAMES[subject] || subject;
           headerRow.appendChild(th);
@@ -722,10 +809,9 @@
         const row = tbody.insertRow();
         let chunkHasData = false;
 
-        chunkSubjects.forEach((subject, index) => {
-          const globalIndex = start + index;
+        chunkIndices.forEach(subjectIndex => {
           const cell = row.insertCell();
-          const detail = getSubjectDetail(name, student, globalIndex);
+          const detail = getSubjectDetail(name, student, subjectIndex);
           if (detail.hasData) {
             chunkHasData = true;
             hasData = true;
@@ -742,12 +828,16 @@
     }
 
     function getSubjectDetail(name, student, subjectIndex) {
+      if (!isSubjectActive(subjectIndex)) {
+        return { text: '-', hasData: false };
+      }
       let hasData = false;
       let displayText = '-';
       const subjectName = SUBJECTS[subjectIndex];
       const hideGrade = SUBJECTS_WITHOUT_GRADES.has(subjectName);
 
       for (const { key } of EXAM_STEPS) {
+        if (!isSubjectAvailableForTerm(key, subjectIndex)) continue;
         if (!hasValidScoreForSubject(student, key, subjectIndex)) continue;
         const termScores = student?.[key];
         const rawScore = Array.isArray(termScores) ? termScores[subjectIndex] : null;

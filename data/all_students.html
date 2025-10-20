@@ -275,7 +275,7 @@
   <script>
     const SUBJECTS = [
       '공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1',
-      '대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회'
+      '대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회2'
     ];
     const SUBJECT_DISPLAY_NAMES = {
       '공통국어1': '공통국어 (1학기)',
@@ -283,7 +283,7 @@
       '공통영어1': '공통영어 (1학기)',
       '공통영어2': '공통영어 (2학기)',
       '통합사회1': '통합사회 (1학기)',
-      '통합사회': '통합사회 (2학기)',
+      '통합사회2': '통합사회 (2학기)',
       '공통수학1': '공통수학1 (1학기)',
       '공통수학2': '공통수학2 (1학기)',
       '통합과학1': '통합과학1 (1학기)',
@@ -301,9 +301,69 @@
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const GRADE_LEVELS = [1, 2, 3, 4, 5];
     const STORAGE_KEY = 'grades:studentDataset';
+    const EXAM_STEPS = [
+      { key: 'semester1', label: '1학기' },
+      { key: 'semester2', label: '2학기' }
+    ];
+    const SUBJECT_COUNT = SUBJECTS.length;
     let currentStudents = [];
     let currentSortKey = 'overallRank';
     let subjectWeights = SUBJECTS.map(() => 1);
+
+    function createEmptyTermSubjectAvailability() {
+      const result = {};
+      EXAM_STEPS.forEach(({ key }) => {
+        result[key] = Array(SUBJECT_COUNT).fill(false);
+      });
+      return result;
+    }
+
+    function computeTermSubjectAvailability(dataset) {
+      const availability = createEmptyTermSubjectAvailability();
+      if (!dataset || typeof dataset !== 'object') return availability;
+
+      Object.values(dataset).forEach(info => {
+        EXAM_STEPS.forEach(({ key }) => {
+          const termScores = info?.[key];
+          if (!Array.isArray(termScores)) return;
+          termScores.forEach((value, index) => {
+            if (Number.isFinite(value)) {
+              availability[key][index] = true;
+            }
+          });
+        });
+      });
+
+      return availability;
+    }
+
+    function deriveActiveSubjectIndices(availability) {
+      return SUBJECTS.map((_, index) => index).filter(index => {
+        return EXAM_STEPS.some(({ key }) => availability?.[key]?.[index]);
+      });
+    }
+
+    let termSubjectAvailability = createEmptyTermSubjectAvailability();
+    let activeSubjectIndices = [];
+    let activeSubjectIndexSet = new Set();
+
+    function updateSubjectAvailabilityFromDataset(dataset) {
+      termSubjectAvailability = computeTermSubjectAvailability(dataset);
+      activeSubjectIndices = deriveActiveSubjectIndices(termSubjectAvailability);
+      activeSubjectIndexSet = new Set(activeSubjectIndices);
+    }
+
+    function isSubjectActive(index) {
+      return activeSubjectIndexSet.has(index);
+    }
+
+    function isSubjectAvailableForTerm(termKey, index) {
+      return Boolean(termSubjectAvailability?.[termKey]?.[index]);
+    }
+
+    function getActiveSubjectIndices() {
+      return activeSubjectIndices;
+    }
 
     const SORT_HANDLERS = {
       overallRank: (a, b) => {
@@ -421,6 +481,7 @@
     }
 
     function calculateSubjectAverage(student, index) {
+      if (!isSubjectActive(index)) return null;
       const terms = [student.semester1, student.semester2];
       const scores = [];
       terms.forEach(term => {
@@ -505,6 +566,7 @@
     function assignSubjectGrades(students) {
       if (!students.length) return;
       SUBJECTS.forEach((subjectName, subjectIndex) => {
+        if (!isSubjectActive(subjectIndex)) return;
         const skipGrade = SUBJECTS_WITHOUT_GRADES.has(subjectName);
         const candidates = students.filter(student => Number.isFinite(student.subjectAverages[subjectIndex]));
         if (!candidates.length) return;
@@ -534,12 +596,16 @@
 
     function assignOverallRanks(students) {
       if (!students.length) return;
-      const ordered = [...students].sort((a, b) => b.weightedSum - a.weightedSum);
+      const ordered = [...students].sort((a, b) => {
+        const scoreA = Number.isFinite(a.weightedSum) ? a.weightedSum : -Infinity;
+        const scoreB = Number.isFinite(b.weightedSum) ? b.weightedSum : -Infinity;
+        return scoreB - scoreA;
+      });
       let previousScore = null;
       let previousRank = 0;
 
       ordered.forEach((student, index) => {
-        const score = student.weightedSum;
+        const score = Number.isFinite(student.weightedSum) ? student.weightedSum : null;
         const isTie = previousScore !== null && Math.abs(previousScore - score) < 1e-6;
         const rank = isTie ? previousRank : index + 1;
         student.overallRank = rank;
@@ -552,7 +618,9 @@
 
     function assignAverageGrades(students) {
       students.forEach(student => {
-        const gradeValues = student.subjectGrades.filter(value => Number.isFinite(value));
+        const gradeValues = student.subjectGrades.filter((value, index) => {
+          return isSubjectActive(index) && Number.isFinite(value);
+        });
         if (!gradeValues.length) {
           student.averageGradeValue = null;
           student.averageGradeText = '-';
@@ -567,7 +635,8 @@
 
     function applyWeights(students) {
       if (!Array.isArray(students) || !students.length) return;
-      const sanitizedWeights = subjectWeights.map(value => {
+      const sanitizedWeights = subjectWeights.map((value, index) => {
+        if (!isSubjectActive(index)) return 0;
         const numeric = Number(value);
         if (!Number.isFinite(numeric) || numeric < 0) return 0;
         return numeric;
@@ -594,6 +663,9 @@
       }
 
       return SUBJECTS.map((subjectName, subjectIndex) => {
+        if (!isSubjectActive(subjectIndex)) {
+          return {};
+        }
         if (SUBJECTS_WITHOUT_GRADES.has(subjectName)) {
           return {};
         }
@@ -630,12 +702,19 @@
         return;
       }
 
+      const activeIndices = getActiveSubjectIndices();
+      if (!activeIndices.length) {
+        container.hidden = true;
+        return;
+      }
+
       const gradeCutlines = calculateGradeCutlines(students);
       const headRow = document.createElement('tr');
       const titleTh = document.createElement('th');
       titleTh.textContent = '등급컷';
       headRow.appendChild(titleTh);
-      SUBJECTS.forEach(subject => {
+      activeIndices.forEach(subjectIndex => {
+        const subject = SUBJECTS[subjectIndex];
         const th = document.createElement('th');
         th.textContent = SUBJECT_DISPLAY_NAMES[subject] || subject;
         headRow.appendChild(th);
@@ -648,7 +727,7 @@
         gradeCell.textContent = `${level}등급`;
         tr.appendChild(gradeCell);
 
-        SUBJECTS.forEach((_, subjectIndex) => {
+        activeIndices.forEach(subjectIndex => {
           const td = document.createElement('td');
           const score = gradeCutlines[subjectIndex]?.[level];
           td.textContent = Number.isFinite(score) ? formatNumber(score, 2) : '-';
@@ -667,6 +746,9 @@
       }
 
       return SUBJECTS.map((_, subjectIndex) => {
+        if (!isSubjectActive(subjectIndex)) {
+          return { mean: null, stdDev: null };
+        }
         const scores = students
           .map(student => student.subjectAverages[subjectIndex])
           .filter(score => Number.isFinite(score));
@@ -694,8 +776,14 @@
         return;
       }
 
+      const activeIndices = getActiveSubjectIndices();
+      if (!activeIndices.length) {
+        container.hidden = true;
+        return;
+      }
+
       const stats = calculateSubjectStats(students);
-      const hasData = stats.some(stat => Number.isFinite(stat.mean));
+      const hasData = activeIndices.some(index => Number.isFinite(stats[index]?.mean));
       if (!hasData) {
         container.hidden = true;
         return;
@@ -705,7 +793,8 @@
       const titleTh = document.createElement('th');
       titleTh.textContent = '구분';
       headRow.appendChild(titleTh);
-      SUBJECTS.forEach(subject => {
+      activeIndices.forEach(subjectIndex => {
+        const subject = SUBJECTS[subjectIndex];
         const th = document.createElement('th');
         th.textContent = SUBJECT_DISPLAY_NAMES[subject] || subject;
         headRow.appendChild(th);
@@ -717,7 +806,8 @@
       meanLabel.textContent = '평균';
       meanRow.appendChild(meanLabel);
 
-      stats.forEach(stat => {
+      activeIndices.forEach(subjectIndex => {
+        const stat = stats[subjectIndex] || {};
         const td = document.createElement('td');
         td.textContent = Number.isFinite(stat.mean) ? formatNumber(stat.mean, 2) : '-';
         meanRow.appendChild(td);
@@ -729,7 +819,8 @@
       stdLabel.textContent = '표준편차';
       stdRow.appendChild(stdLabel);
 
-      stats.forEach(stat => {
+      activeIndices.forEach(subjectIndex => {
+        const stat = stats[subjectIndex] || {};
         const td = document.createElement('td');
         td.textContent = Number.isFinite(stat.stdDev) ? formatNumber(stat.stdDev, 2) : '-';
         stdRow.appendChild(td);
@@ -758,6 +849,7 @@
         }
         const subjectLists = classScores.get(classNumber);
         student.subjectAverages.forEach((score, index) => {
+          if (!isSubjectActive(index)) return;
           if (!Number.isFinite(score)) return;
           subjectLists[index].push(score);
         });
@@ -799,11 +891,18 @@
         return;
       }
 
+      const activeIndices = getActiveSubjectIndices();
+      if (!activeIndices.length) {
+        container.hidden = true;
+        return;
+      }
+
       const headRow = document.createElement('tr');
       const classTh = document.createElement('th');
       classTh.textContent = '반';
       headRow.appendChild(classTh);
-      SUBJECTS.forEach(subject => {
+      activeIndices.forEach(subjectIndex => {
+        const subject = SUBJECTS[subjectIndex];
         const th = document.createElement('th');
         th.textContent = SUBJECT_DISPLAY_NAMES[subject] || subject;
         headRow.appendChild(th);
@@ -815,7 +914,8 @@
         const classTd = document.createElement('td');
         classTd.textContent = `${entry.classNumber}반`;
         tr.appendChild(classTd);
-        entry.subjectAverages.forEach(score => {
+        activeIndices.forEach(subjectIndex => {
+          const score = entry.subjectAverages[subjectIndex];
           const td = document.createElement('td');
           td.textContent = Number.isFinite(score) ? formatNumber(score, 2) : '-';
           tr.appendChild(td);
@@ -843,7 +943,14 @@
       if (!container) return;
 
       container.innerHTML = '';
-      SUBJECTS.forEach((subject, index) => {
+      const activeIndices = getActiveSubjectIndices();
+      if (!activeIndices.length) {
+        container.classList.add('hidden');
+        return;
+      }
+
+      activeIndices.forEach(index => {
+        const subject = SUBJECTS[index];
         const group = document.createElement('div');
         group.className = 'weight-group';
 
@@ -914,7 +1021,9 @@
       baseHeaders.forEach(({ label, sortKey }) => {
         row.appendChild(createHeaderCell(label, sortKey));
       });
-      SUBJECTS.forEach((subject, index) => {
+      const activeIndices = getActiveSubjectIndices();
+      activeIndices.forEach(index => {
+        const subject = SUBJECTS[index];
         const displayName = SUBJECT_DISPLAY_NAMES[subject] || subject;
         const hasGrade = !SUBJECTS_WITHOUT_GRADES.has(subject);
         const label = hasGrade ? `${displayName} (등수) / 등급` : `${displayName} (등수)`;
@@ -927,6 +1036,7 @@
     function renderTableRows(students) {
       const body = document.getElementById('analysisBody');
       body.innerHTML = '';
+      const activeIndices = getActiveSubjectIndices();
       students.forEach(student => {
         const row = document.createElement('tr');
 
@@ -959,7 +1069,8 @@
         avgGradeCell.textContent = student.averageGradeText ?? '-';
         row.appendChild(avgGradeCell);
 
-        student.subjectGrades.forEach((grade, index) => {
+        activeIndices.forEach(index => {
+          const grade = student.subjectGrades[index];
           const td = document.createElement('td');
           td.classList.add('grade-cell');
           const averageScore = student.subjectAverages[index];
@@ -1019,6 +1130,8 @@
         return;
       }
 
+      updateSubjectAvailabilityFromDataset(dataset);
+
       const students = buildStudentSummaries(dataset);
       if (!students.length) {
         emptyState.hidden = false;
@@ -1027,7 +1140,7 @@
       }
 
       currentStudents = students;
-      subjectWeights = SUBJECTS.map(() => 1);
+      subjectWeights = SUBJECTS.map((_, index) => (isSubjectActive(index) ? 1 : 0));
       assignSubjectGrades(currentStudents);
       assignAverageGrades(currentStudents);
       applyWeights(currentStudents);
