@@ -123,14 +123,24 @@
       { key: 'semester2', label: '2학기', prefix: 'S2_' }
     ];
     const SUBJECT_COUNT = SUBJECTS.length;
+    const COLUMN_KEY_ALIASES = {
+      'S2_통합사회2': ['S2_통합사회']
+    };
+
+    function buildColumnKeyList(prefix, subject) {
+      const baseKey = `${prefix ?? ''}${subject}`;
+      const aliasKeys = COLUMN_KEY_ALIASES[baseKey] || [];
+      return [baseKey, ...aliasKeys];
+    }
+
     const TERM_SUBJECT_COLUMNS = EXAM_STEPS.reduce((acc, step) => {
       const subjects = TERM_SUBJECTS[step.key] || [];
       const mapping = {};
       SUBJECTS.forEach(subject => {
         if (subjects.includes(subject)) {
-          mapping[subject] = `${step.prefix}${subject}`;
+          mapping[subject] = buildColumnKeyList(step.prefix, subject);
         } else {
-          mapping[subject] = null;
+          mapping[subject] = [];
         }
       });
       acc[step.key] = mapping;
@@ -534,10 +544,20 @@
             const buildTermScores = termKey => {
               const mapping = TERM_SUBJECT_COLUMNS[termKey] || {};
               return SUBJECTS.map(subject => {
-                const columnKey = mapping[subject];
-                if (!columnKey) return null;
-                const numeric = toNum(row[columnKey]);
-                return Number.isFinite(numeric) ? numeric : null;
+                const columnEntry = mapping[subject];
+                const columnKeys = Array.isArray(columnEntry)
+                  ? columnEntry
+                  : columnEntry
+                    ? [columnEntry]
+                    : [];
+                if (!columnKeys.length) return null;
+                for (const columnKey of columnKeys) {
+                  const numeric = toNum(row[columnKey]);
+                  if (Number.isFinite(numeric)) {
+                    return numeric;
+                  }
+                }
+                return null;
               });
             };
 
@@ -623,9 +643,19 @@
       }
     }
 
-    function toNum(v) {
-      const n = Number(v);
-      return Number.isFinite(n) ? n : null;
+    function toNum(value) {
+      if (value === null || value === undefined) return null;
+      if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
+      }
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed === '') return null;
+        const numeric = Number(trimmed);
+        return Number.isFinite(numeric) ? numeric : null;
+      }
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric : null;
     }
 
     const storedDataset = loadStoredDataset();

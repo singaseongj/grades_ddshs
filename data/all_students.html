@@ -327,7 +327,8 @@
           const termScores = info?.[key];
           if (!Array.isArray(termScores)) return;
           termScores.forEach((value, index) => {
-            if (Number.isFinite(value)) {
+            const numeric = toFiniteNumber(value);
+            if (Number.isFinite(numeric)) {
               availability[key][index] = true;
             }
           });
