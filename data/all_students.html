@@ -409,14 +409,25 @@
       return Number.isFinite(numeric) ? numeric : null;
     }
 
+    function sanitizeTermScores(term) {
+      if (!Array.isArray(term)) {
+        return Array(SUBJECTS.length).fill(null);
+      }
+      return SUBJECTS.map((_, index) => {
+        if (index >= term.length) return null;
+        const numeric = toFiniteNumber(term[index]);
+        return Number.isFinite(numeric) ? numeric : null;
+      });
+    }
+
     function calculateSubjectAverage(student, index) {
       const terms = [student.semester1, student.semester2];
       const scores = [];
       terms.forEach(term => {
         if (!Array.isArray(term) || term.length <= index) return;
-        const score = term[index];
-        if (Number.isFinite(score)) {
-          scores.push(score);
+        const sanitizedScore = toFiniteNumber(term[index]);
+        if (Number.isFinite(sanitizedScore)) {
+          scores.push(sanitizedScore);
         }
       });
       if (scores.length === 0) return null;
@@ -434,7 +445,11 @@
         if (!studentIdText && Number.isFinite(studentId)) {
           studentIdText = String(studentId);
         }
-        const subjectAverages = SUBJECTS.map((_, idx) => calculateSubjectAverage(info, idx));
+        const normalizedSemesters = {
+          semester1: sanitizeTermScores(info.semester1),
+          semester2: sanitizeTermScores(info.semester2)
+        };
+        const subjectAverages = SUBJECTS.map((_, idx) => calculateSubjectAverage(normalizedSemesters, idx));
         const validScores = subjectAverages.filter(value => Number.isFinite(value));
         const totalScore = validScores.reduce((sum, value) => sum + value, 0);
         const averageScore = validScores.length > 0 ? totalScore / validScores.length : null;
@@ -568,7 +583,7 @@
           appliedWeight += weight;
         });
 
-        student.weightedSum = weightedSum;
+        student.weightedSum = appliedWeight > 0 ? weightedSum : null;
         student.weightedAverage = appliedWeight > 0 ? weightedSum / appliedWeight : null;
       });
     }
