@@ -701,7 +701,19 @@
           labels.push(label);
           data.push(selfStats.average);
           examKeyOrder.push(key);
-          rankingByExam[key] = selfStats;
+          const termSubjects = new Set(TERM_SUBJECTS[key] || []);
+          const relevantTermSubjects = relevantSubjects.filter(({ name: subjectName }) => termSubjects.has(subjectName));
+          let subjectRank = null;
+          if (relevantTermSubjects.length === 1) {
+            const [{ index: subjectIndex }] = relevantTermSubjects;
+            const rankingInfo = getRankingInfo(key, subjectIndex, name);
+            if (Number.isFinite(rankingInfo?.rank)) {
+              subjectRank = rankingInfo.rank;
+            }
+          }
+
+          const displayRank = Number.isFinite(subjectRank) ? subjectRank : selfStats.rank;
+          rankingByExam[key] = { ...selfStats, displayRank };
         });
 
         if (!data.length) {
@@ -738,7 +750,8 @@
                     if (!Number.isFinite(grade)) return '등급 정보 없음';
                     const examKey = examKeyOrder[context.dataIndex];
                     const stats = rankingByExam[examKey];
-                    const rankText = Number.isFinite(stats?.rank) ? `${stats.rank}등` : '-';
+                    const rankValue = Number.isFinite(stats?.displayRank) ? stats.displayRank : stats?.rank;
+                    const rankText = Number.isFinite(rankValue) ? `${rankValue}등` : '-';
                     return `${grade.toFixed(2)}등급 / ${rankText}`;
                   }
                 }
