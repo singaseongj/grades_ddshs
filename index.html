@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>학생 성적 추이 분석 for DDSHS v1.3</title>
+  <title>학생 성적 추이 분석 for DDSHS v1.4</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- SheetJS (XLSX) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -16,7 +16,7 @@
         <span aria-hidden="true">🏠</span>
         <span class="visually-hidden">홈으로 이동</span>
       </a>
-      <h1>📊 학생별 성적 추이 분석 시스템 for DDSHS v1.3</h1>
+      <h1>📊 학생별 성적 추이 분석 시스템 for DDSHS v1.4</h1>
     </header>
 
     <div class="search-section">
@@ -69,6 +69,9 @@
       </div>
       <div class="chart-container">
         <div class="chart-title">통합사회 성적 추이</div><canvas id="socialChart"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">융합탐구 성적 비교</div><canvas id="fusionChart"></canvas>
       </div>
       <div class="chart-container">
         <div class="chart-title">과학 성적 추이</div><canvas id="scienceChart"></canvas>
@@ -160,6 +163,7 @@
       { id: 'mathChart', title: '수학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분'] },
       { id: 'englishChart', title: '공통영어 성적 추이', subjects: ['공통영어1','공통영어2'] },
       { id: 'socialChart', title: '통합사회 성적 추이', subjects: ['통합사회1','통합사회2'] },
+      { id: 'fusionChart', title: '융합탐구 성적 비교', subjects: ['융합탐구'], mode: 'fusion' },
       { id: 'scienceChart', title: '과학 (통합과학1, 통합과학2, 융합탐구, 역학과 에너지, 화학, 생명과학, 지구과학, 정보과학) 성적 추이', subjects: ['통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'] },
       { id: 'stemChart', title: '수과학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분','통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'] }
     ];
@@ -707,7 +711,7 @@
     function createCharts(name, student) {
       let visibleCount = 0;
       CHART_GROUPS.forEach((group, groupIndex) => {
-        const { id, title, subjects } = group;
+        const { id, title, subjects, mode } = group;
         if (charts[id]) {
           charts[id].destroy();
           charts[id] = null;
@@ -723,6 +727,93 @@
 
         if (!relevantSubjects.length) {
           if (container) container.style.display = 'none';
+          return;
+        }
+
+        if (mode === 'fusion') {
+          const [{ index: subjectIndex }] = relevantSubjects;
+          const semesterKey = 'semester1';
+          const studentScores = student?.[semesterKey];
+          const studentScore = Array.isArray(studentScores) && studentScores.length > subjectIndex
+            ? studentScores[subjectIndex]
+            : null;
+
+          if (!Number.isFinite(studentScore)) {
+            if (container) container.style.display = 'none';
+            return;
+          }
+
+          const labels = ['1학기'];
+          const dataPoints = [studentScore];
+          const rankingInfo = getRankingInfo(semesterKey, subjectIndex, name);
+          const initialRankText = Number.isFinite(rankingInfo?.rank) ? `${rankingInfo.rank}등` : '-';
+          const rankTexts = [initialRankText];
+
+          let sum = 0;
+          let count = 0;
+          Object.values(studentData).forEach(info => {
+            const termScores = info?.[semesterKey];
+            if (!Array.isArray(termScores) || termScores.length <= subjectIndex) return;
+            const score = termScores[subjectIndex];
+            if (Number.isFinite(score)) {
+              sum += score;
+              count += 1;
+            }
+          });
+
+          if (count > 0) {
+            const averageScore = sum / count;
+            labels.push('평균');
+            dataPoints.push(averageScore);
+            rankTexts.push('평균');
+          }
+
+          if (!labels.length) {
+            if (container) container.style.display = 'none';
+            return;
+          }
+
+          if (container) container.style.display = '';
+          charts[id] = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                label: '융합탐구 점수',
+                data: dataPoints,
+                backgroundColor: getChartColor(groupIndex, 0.6),
+                borderColor: getChartColor(groupIndex),
+                borderWidth: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: (context) => {
+                      const score = context.parsed.y;
+                      const rankText = rankTexts[context.dataIndex] ?? '-';
+                      const scoreText = formatScoreValue(score);
+                      return `${scoreText}점 / ${rankText}`;
+                    }
+                  }
+                }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  title: { display: true, text: '점수' }
+                },
+                x: {
+                  title: { display: true, text: '구분' }
+                }
+              }
+            }
+          });
+          visibleCount += 1;
           return;
         }
 
@@ -848,6 +939,15 @@
         `rgba(255, 159, 64, ${alpha})`
       ];
       return colors[index % colors.length];
+    }
+
+    function formatScoreValue(value) {
+      if (!Number.isFinite(value)) return '-';
+      const rounded = Math.round(value);
+      if (Math.abs(value - rounded) < 1e-6) {
+        return String(rounded);
+      }
+      return value.toFixed(1);
     }
 
     function updateTable(name, student) {
