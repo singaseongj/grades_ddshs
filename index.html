@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>학생 성적 추이 분석 for DDSHS v1.2</title>
+  <title>학생 성적 추이 분석 for DDSHS v1.3</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- SheetJS (XLSX) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -16,7 +16,7 @@
         <span aria-hidden="true">🏠</span>
         <span class="visually-hidden">홈으로 이동</span>
       </a>
-      <h1>📊 학생별 성적 추이 분석 시스템 for DDSHS v1.2</h1>
+      <h1>📊 학생별 성적 추이 분석 시스템 for DDSHS v1.3</h1>
     </header>
 
     <div class="search-section">
@@ -753,9 +753,19 @@
               subjectRank = rankingInfo.rank;
             }
           }
-
-          const displayRank = Number.isFinite(subjectRank) ? subjectRank : selfStats.rank;
-          rankingByExam[key] = { ...selfStats, displayRank };
+          const totalRankingInfo = group.id === 'overallChart' ? getExamTotalRanking(key, name) : null;
+          let displayRank = Number.isFinite(selfStats?.rank) ? selfStats.rank : null;
+          if (Number.isFinite(subjectRank)) {
+            displayRank = subjectRank;
+          }
+          if (Number.isFinite(totalRankingInfo?.rank)) {
+            displayRank = totalRankingInfo.rank;
+          }
+          rankingByExam[key] = {
+            ...selfStats,
+            displayRank,
+            totalScore: Number.isFinite(totalRankingInfo?.total) ? totalRankingInfo.total : null
+          };
         });
 
         if (!data.length) {
@@ -794,6 +804,11 @@
                     const stats = rankingByExam[examKey];
                     const rankValue = Number.isFinite(stats?.displayRank) ? stats.displayRank : stats?.rank;
                     const rankText = Number.isFinite(rankValue) ? `${rankValue}등` : '-';
+                    if (group.id === 'overallChart') {
+                      const totalScore = stats?.totalScore;
+                      const totalText = Number.isFinite(totalScore) ? `${totalScore.toFixed(2)}점` : '-';
+                      return `${grade.toFixed(2)}등급 / ${totalText} / ${rankText}`;
+                    }
                     return `${grade.toFixed(2)}등급 / ${rankText}`;
                   }
                 }

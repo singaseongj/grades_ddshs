@@ -310,6 +310,13 @@
     let currentSortKey = 'overallRank';
     let subjectWeights = SUBJECTS.map(() => 1);
 
+    function normalizeWeightValue(value) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 0;
+      const rounded = Math.round(numeric);
+      return Math.max(0, rounded);
+    }
+
     function createEmptyTermSubjectAvailability() {
       const result = {};
       EXAM_STEPS.forEach(({ key }) => {
@@ -638,9 +645,8 @@
       if (!Array.isArray(students) || !students.length) return;
       const sanitizedWeights = subjectWeights.map((value, index) => {
         if (!isSubjectActive(index)) return 0;
-        const numeric = Number(value);
-        if (!Number.isFinite(numeric) || numeric < 0) return 0;
-        return numeric;
+        const normalized = normalizeWeightValue(value);
+        return normalized > 0 ? normalized : 0;
       });
 
       students.forEach(student => {
@@ -965,12 +971,31 @@
         input.type = 'number';
         input.id = inputId;
         input.min = '0';
-        input.step = '0.1';
-        input.value = subjectWeights[index];
+        input.step = '1';
+        const defaultValue = normalizeWeightValue(subjectWeights[index]);
+        subjectWeights[index] = defaultValue;
+        input.value = defaultValue;
+
+        const syncWeightValue = () => {
+          const normalized = normalizeWeightValue(input.value);
+          if (String(normalized) !== input.value) {
+            input.value = normalized;
+          }
+          const hasChanged = subjectWeights[index] !== normalized;
+          subjectWeights[index] = normalized;
+          return hasChanged;
+        };
+
         input.addEventListener('input', () => {
-          const rawValue = Number(input.value);
-          subjectWeights[index] = Number.isFinite(rawValue) && rawValue >= 0 ? rawValue : 0;
-          onWeightChanged();
+          if (syncWeightValue()) {
+            onWeightChanged();
+          }
+        });
+
+        input.addEventListener('blur', () => {
+          if (syncWeightValue()) {
+            onWeightChanged();
+          }
         });
 
         group.appendChild(label);
