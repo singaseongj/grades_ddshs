@@ -277,6 +277,10 @@
       '공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1',
       '대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회2'
     ];
+    const DEFAULT_SUBJECT_WEIGHTS = [
+      3, 3, 4, 4, 3, 3, 3, 3,
+      3, 3, 3, 3, 3, 3, 3, 3, 3, 3
+    ];
     const SUBJECT_DISPLAY_NAMES = {
       '공통국어1': '공통국어 (1학기)',
       '공통국어2': '공통국어 (2학기)',
@@ -308,7 +312,7 @@
     const SUBJECT_COUNT = SUBJECTS.length;
     let currentStudents = [];
     let currentSortKey = 'overallRank';
-    let subjectWeights = SUBJECTS.map(() => 1);
+    let subjectWeights = [...DEFAULT_SUBJECT_WEIGHTS];
 
     function normalizeWeightValue(value) {
       const numeric = Number(value);
@@ -1166,7 +1170,9 @@
       }
 
       currentStudents = students;
-      subjectWeights = SUBJECTS.map((_, index) => (isSubjectActive(index) ? 1 : 0));
+      subjectWeights = SUBJECTS.map((_, index) => (
+        isSubjectActive(index) ? (DEFAULT_SUBJECT_WEIGHTS[index] ?? 0) : 0
+      ));
       assignSubjectGrades(currentStudents);
       assignAverageGrades(currentStudents);
       applyWeights(currentStudents);
