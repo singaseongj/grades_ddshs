@@ -155,6 +155,15 @@ tr:nth-child(even) { background-color: #f2f2f2; }
 .input-row { display: grid; grid-template-columns: repeat(6,1fr); gap: 10px; margin-bottom: 10px; }
 .input-row input { padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: center; background: #fff; }
 
+.page-footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid #e0e0e0;
+  text-align: center;
+  color: #555;
+  line-height: 1.6;
+}
+
 /* 업로드/다운로드 섹션 */
 .io-section { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
 
