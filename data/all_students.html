@@ -273,6 +273,7 @@
   </div>
 
   <script>
+    const EXCLUDED_STUDENT_NAMES = new Set(['정성진', '양하원']);
     const SUBJECTS = [
       '공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1',
       '대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회2'
@@ -509,7 +510,9 @@
     }
 
     function buildStudentSummaries(dataset) {
-      return Object.entries(dataset).map(([name, info]) => {
+      return Object.entries(dataset)
+        .filter(([name]) => !EXCLUDED_STUDENT_NAMES.has(name))
+        .map(([name, info]) => {
         const studentId = toFiniteNumber(info.number);
         let studentIdText = '';
         if (info?.number !== undefined && info?.number !== null) {
@@ -1131,7 +1134,7 @@
       summary.innerHTML = '';
       if (!students.length) return;
       const items = [
-        { label: '총 학생 수', value: `${students.length.toLocaleString('ko-KR')}명` }
+        { label: '총 학생 수', value: '80명' }
       ];
 
       items.forEach(({ label, value }) => {
