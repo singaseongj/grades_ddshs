@@ -278,6 +278,10 @@
       '공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1',
       '대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회2'
     ];
+    const SCIENCE_MATH_SUBJECT_KEYS = [
+      '공통수학1', '공통수학2', '통합과학1', '통합과학2',
+      '대수', '미적분', '역학과 에너지', '화학', '생명과학', '지구과학', '정보과학'
+    ];
     const DEFAULT_SUBJECT_WEIGHTS = [
       3, 3, 4, 4, 3, 3, 3, 3,
       3, 3, 3, 3, 3, 3, 3, 3, 3, 3
@@ -303,6 +307,10 @@
       '정보과학': '정보과학 (2학기)'
     };
     const SUBJECTS_WITHOUT_GRADES = new Set(['융합탐구']);
+    const SCIENCE_MATH_SUBJECT_INDICES = SUBJECTS
+      .map((subject, index) => ({ subject, index }))
+      .filter(entry => SCIENCE_MATH_SUBJECT_KEYS.includes(entry.subject))
+      .map(entry => entry.index);
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const GRADE_LEVELS = [1, 2, 3, 4, 5];
     const STORAGE_KEY = 'grades:studentDataset';
@@ -406,6 +414,11 @@
       },
       averageGrade: (a, b) => {
         const result = compareNumericAsc(a.averageGradeValue, b.averageGradeValue);
+        if (result !== 0) return result;
+        return a.name.localeCompare(b.name, 'ko');
+      },
+      scienceMathAverageGrade: (a, b) => {
+        const result = compareNumericAsc(a.scienceMathAverageGradeValue, b.scienceMathAverageGradeValue);
         if (result !== 0) return result;
         return a.name.localeCompare(b.name, 'ko');
       }
@@ -543,6 +556,8 @@
           weightedAverage: null,
           averageGradeValue: null,
           averageGradeText: '-',
+          scienceMathAverageGradeValue: null,
+          scienceMathAverageGradeText: '-',
           overallRank: 0
         };
       });
@@ -632,19 +647,26 @@
     }
 
     function assignAverageGrades(students) {
-      students.forEach(student => {
-        const gradeValues = student.subjectGrades.filter((value, index) => {
-          return isSubjectActive(index) && Number.isFinite(value);
-        });
+      const computeAverageGrade = (student, indices) => {
+        const gradeValues = indices
+          .filter(index => isSubjectActive(index) && Number.isFinite(student.subjectGrades[index]))
+          .map(index => student.subjectGrades[index]);
         if (!gradeValues.length) {
-          student.averageGradeValue = null;
-          student.averageGradeText = '-';
-          return;
+          return { value: null, text: '-' };
         }
         const total = gradeValues.reduce((sum, value) => sum + value, 0);
         const averageGrade = total / gradeValues.length;
-        student.averageGradeValue = averageGrade;
-        student.averageGradeText = `${formatNumber(averageGrade, 1)}등급`;
+        return { value: averageGrade, text: `${formatNumber(averageGrade, 1)}등급` };
+      };
+
+      students.forEach(student => {
+        const overall = computeAverageGrade(student, SUBJECTS.map((_, index) => index));
+        student.averageGradeValue = overall.value;
+        student.averageGradeText = overall.text;
+
+        const scienceMath = computeAverageGrade(student, SCIENCE_MATH_SUBJECT_INDICES);
+        student.scienceMathAverageGradeValue = scienceMath.value;
+        student.scienceMathAverageGradeText = scienceMath.text;
       });
     }
 
@@ -1029,6 +1051,14 @@
       return th;
     }
 
+    function createStaticHeaderCell(label) {
+      const th = document.createElement('th');
+      const labelSpan = document.createElement('span');
+      labelSpan.textContent = label;
+      th.appendChild(labelSpan);
+      return th;
+    }
+
     function sortStudents(sortKey) {
       if (!Array.isArray(currentStudents) || currentStudents.length === 0) return;
       const key = SORT_HANDLERS[sortKey] ? sortKey : 'overallRank';
@@ -1043,13 +1073,15 @@
       const head = document.getElementById('analysisHead');
       head.innerHTML = '';
       const row = document.createElement('tr');
+      row.appendChild(createStaticHeaderCell('순'));
       const baseHeaders = [
         { label: '전체 등수 (가중치 합계 기준)', sortKey: 'overallRank' },
         { label: '이름', sortKey: 'name' },
         { label: '학번', sortKey: 'studentId' },
         { label: '가중치 합계', sortKey: 'weightedSum' },
         { label: '가중치 평균', sortKey: 'weightedAverage' },
-        { label: '등급 평균', sortKey: 'averageGrade' }
+        { label: '등급평균 (전체과목)', sortKey: 'averageGrade' },
+        { label: '등급평균 (수과학)', sortKey: 'scienceMathAverageGrade' }
       ];
       baseHeaders.forEach(({ label, sortKey }) => {
         row.appendChild(createHeaderCell(label, sortKey));
@@ -1070,8 +1102,12 @@
       const body = document.getElementById('analysisBody');
       body.innerHTML = '';
       const activeIndices = getActiveSubjectIndices();
-      students.forEach(student => {
+      students.forEach((student, displayIndex) => {
         const row = document.createElement('tr');
+
+        const orderCell = document.createElement('td');
+        orderCell.textContent = String(displayIndex + 1);
+        row.appendChild(orderCell);
 
         const rankCell = document.createElement('td');
         rankCell.textContent = Number.isFinite(student.overallRank)
@@ -1101,6 +1137,11 @@
         avgGradeCell.classList.add('grade-cell');
         avgGradeCell.textContent = student.averageGradeText ?? '-';
         row.appendChild(avgGradeCell);
+
+        const scienceMathAvgGradeCell = document.createElement('td');
+        scienceMathAvgGradeCell.classList.add('grade-cell');
+        scienceMathAvgGradeCell.textContent = student.scienceMathAverageGradeText ?? '-';
+        row.appendChild(scienceMathAvgGradeCell);
 
         activeIndices.forEach(index => {
           const grade = student.subjectGrades[index];
