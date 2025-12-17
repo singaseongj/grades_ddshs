@@ -11,6 +11,92 @@
     .analysis-container h1 { margin-bottom: 10px; }
     .analysis-container .description { color: #555; margin-bottom: 25px; }
 
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .help-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid #c3c8d4;
+      background: #fff;
+      color: #1a73e8;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .help-icon:hover,
+    .help-icon:focus-visible {
+      background: #e8f0fe;
+      color: #0c47a1;
+      border-color: #1a73e8;
+      outline: none;
+    }
+
+    .help-modal {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 1000;
+    }
+
+    .help-modal[hidden] {
+      display: none;
+    }
+
+    .help-content {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 24px 22px 20px;
+      width: min(440px, 90%);
+      box-shadow: 0 12px 30px rgba(26, 39, 86, 0.18);
+    }
+
+    .help-content h2 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 18px;
+      color: #1a237e;
+    }
+
+    .help-list {
+      padding-left: 18px;
+      margin: 0 0 18px;
+      color: #3c4043;
+      line-height: 1.5;
+    }
+
+    .help-close {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 16px;
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    .help-close:hover,
+    .help-close:focus-visible {
+      background: #0c47a1;
+      outline: none;
+    }
+
     .back-button {
       display: inline-flex;
       align-items: center;
@@ -224,7 +310,10 @@
       <span class="icon" aria-hidden="true">←</span>
       <span>메인으로</span>
     </a>
-    <h1>전체 학생 성적 분석</h1>
+    <div class="title-row">
+      <h1>전체 학생 성적 분석</h1>
+      <button id="helpButton" class="help-icon" type="button" aria-label="도움말 보기">?</button>
+    </div>
     <p class="description">업로드한 엑셀 데이터를 기반으로 학생별 가중치 합계, 가중치 평균, 과목별 등급컷, 전체 등수를 확인할 수 있습니다.</p>
 
     <div id="emptyState" class="empty-state" hidden>
@@ -272,6 +361,17 @@
     </div>
   </div>
 
+  <div id="helpModal" class="help-modal" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle" hidden>
+    <div class="help-content">
+      <h2 id="helpModalTitle">도움말</h2>
+      <ol class="help-list">
+        <li>과목별 가중치(시수)를 입력해서 성적 재산출 가능</li>
+        <li>항목별  ☰버튼을 눌러 항목에 맞게 정렬할 수 있습니다.</li>
+      </ol>
+      <button id="helpClose" class="help-close" type="button">확인</button>
+    </div>
+  </div>
+
   <script>
     const EXCLUDED_STUDENT_NAMES = new Set(['정성진', '양하원']);
     const SUBJECTS = [
@@ -314,6 +414,9 @@
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const GRADE_LEVELS = [1, 2, 3, 4, 5];
     const STORAGE_KEY = 'grades:studentDataset';
+    const helpModal = document.getElementById('helpModal');
+    const helpButton = document.getElementById('helpButton');
+    const helpCloseButton = document.getElementById('helpClose');
     const EXAM_STEPS = [
       { key: 'semester1', label: '1학기' },
       { key: 'semester2', label: '2학기' }
@@ -322,6 +425,18 @@
     let currentStudents = [];
     let currentSortKey = 'overallRank';
     let subjectWeights = [...DEFAULT_SUBJECT_WEIGHTS];
+
+    function showHelpModal() {
+      if (!helpModal) return;
+      helpModal.hidden = false;
+      helpCloseButton?.focus();
+    }
+
+    function hideHelpModal() {
+      if (!helpModal) return;
+      helpModal.hidden = true;
+      helpButton?.focus();
+    }
 
     function normalizeWeightValue(value) {
       const numeric = Number(value);
@@ -1198,6 +1313,8 @@
       const emptyState = document.getElementById('emptyState');
       const analysisContent = document.getElementById('analysisContent');
 
+      showHelpModal();
+
       if (!dataset || Object.keys(dataset).length === 0) {
         emptyState.hidden = false;
         analysisContent.hidden = true;
@@ -1232,6 +1349,19 @@
       emptyState.hidden = true;
       analysisContent.hidden = false;
     }
+
+    helpButton?.addEventListener('click', showHelpModal);
+    helpCloseButton?.addEventListener('click', hideHelpModal);
+    helpModal?.addEventListener('click', event => {
+      if (event.target === helpModal) {
+        hideHelpModal();
+      }
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && helpModal && !helpModal.hidden) {
+        hideHelpModal();
+      }
+    });
 
     document.addEventListener('DOMContentLoaded', initialize);
   </script>
