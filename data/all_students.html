@@ -1209,8 +1209,8 @@
         { label: '학번', sortKey: 'studentId' },
         { label: '가중치 합계', sortKey: 'weightedSum' },
         { label: '가중치 평균', sortKey: 'weightedAverage' },
-        { label: '등급평균 - 가중치적용 (전체과목)', sortKey: 'averageGrade' },
-        { label: '등급평균 - 가중치적용 (수과학)', sortKey: 'scienceMathAverageGrade' }
+        { label: '등급평균 (전체과목) *가중치 적용', sortKey: 'averageGrade' },
+        { label: '등급평균 (수과학) *가중치 적용', sortKey: 'scienceMathAverageGrade' }
       ];
       baseHeaders.forEach(({ label, sortKey }) => {
         row.appendChild(createHeaderCell(label, sortKey));
