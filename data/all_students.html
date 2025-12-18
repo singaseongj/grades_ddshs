@@ -761,16 +761,33 @@
       });
     }
 
+    function getSanitizedWeights() {
+      return subjectWeights.map((value, index) => {
+        if (!isSubjectActive(index)) return 0;
+        const normalized = normalizeWeightValue(value);
+        return normalized > 0 ? normalized : 0;
+      });
+    }
+
     function assignAverageGrades(students) {
+      const sanitizedWeights = getSanitizedWeights();
       const computeAverageGrade = (student, indices) => {
-        const gradeValues = indices
-          .filter(index => isSubjectActive(index) && Number.isFinite(student.subjectGrades[index]))
-          .map(index => student.subjectGrades[index]);
-        if (!gradeValues.length) {
+        let weightedSum = 0;
+        let totalWeight = 0;
+
+        indices.forEach(index => {
+          const gradeValue = student.subjectGrades[index];
+          const weight = sanitizedWeights[index];
+          if (!isSubjectActive(index) || !Number.isFinite(gradeValue) || weight <= 0) return;
+          weightedSum += gradeValue * weight;
+          totalWeight += weight;
+        });
+
+        if (totalWeight <= 0) {
           return { value: null, text: '-' };
         }
-        const total = gradeValues.reduce((sum, value) => sum + value, 0);
-        const averageGrade = total / gradeValues.length;
+
+        const averageGrade = weightedSum / totalWeight;
         return { value: averageGrade, text: `${formatNumber(averageGrade, 1)}등급` };
       };
 
@@ -787,11 +804,7 @@
 
     function applyWeights(students) {
       if (!Array.isArray(students) || !students.length) return;
-      const sanitizedWeights = subjectWeights.map((value, index) => {
-        if (!isSubjectActive(index)) return 0;
-        const normalized = normalizeWeightValue(value);
-        return normalized > 0 ? normalized : 0;
-      });
+      const sanitizedWeights = getSanitizedWeights();
 
       students.forEach(student => {
         let weightedSum = 0;
@@ -1079,6 +1092,7 @@
 
     function onWeightChanged() {
       if (!currentStudents.length) return;
+      assignAverageGrades(currentStudents);
       applyWeights(currentStudents);
       assignOverallRanks(currentStudents);
       renderSummary(currentStudents);
@@ -1195,8 +1209,8 @@
         { label: '학번', sortKey: 'studentId' },
         { label: '가중치 합계', sortKey: 'weightedSum' },
         { label: '가중치 평균', sortKey: 'weightedAverage' },
-        { label: '등급평균 (전체과목)', sortKey: 'averageGrade' },
-        { label: '등급평균 (수과학)', sortKey: 'scienceMathAverageGrade' }
+        { label: '등급평균 - 가중치적용 (전체과목)', sortKey: 'averageGrade' },
+        { label: '등급평균 - 가중치적용 (수과학)', sortKey: 'scienceMathAverageGrade' }
       ];
       baseHeaders.forEach(({ label, sortKey }) => {
         row.appendChild(createHeaderCell(label, sortKey));
