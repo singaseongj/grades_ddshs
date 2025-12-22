@@ -572,8 +572,7 @@
 
     function formatScoreDisplay(value) {
       if (!Number.isFinite(value)) return '-';
-      const hasDecimal = Math.abs(value - Math.round(value)) > 1e-6;
-      return formatNumber(value, hasDecimal ? 1 : 0);
+      return formatNumber(value, 2);
     }
 
     function compareNumericAsc(rawA, rawB) {
@@ -1290,7 +1289,7 @@
           }
           if (Number.isFinite(averageScore)) {
             const subjectLabel = SUBJECT_DISPLAY_NAMES[SUBJECTS[index]] || SUBJECTS[index];
-            td.title = `${subjectLabel} 평균: ${formatNumber(averageScore, 1)}점`;
+            td.title = `${subjectLabel} 평균: ${formatNumber(averageScore, 2)}점`;
           }
           row.appendChild(td);
         });
