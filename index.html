@@ -55,7 +55,7 @@
 
     <div class="charts-section" id="chartsSection" style="display:none;">
       <div class="chart-container">
-        <div class="chart-title">전체 성적 추이(원점수 기준)</div><canvas id="overallChart"></canvas>
+        <div class="chart-title">전체 성적 추이(가중치 합계 기준)</div><canvas id="overallChart"></canvas>
       </div>
       <div class="chart-container">
         <div class="chart-title">공통국어 성적 추이</div><canvas id="koreanChart"></canvas>
@@ -121,7 +121,11 @@
       '공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','공통국어1','공통영어1','통합사회1',
       '대수','미적분','역학과 에너지','화학','생명과학','지구과학','정보과학','공통국어2','공통영어2','통합사회2'
     ];
-    const SUBJECTS_WITHOUT_GRADES = new Set();
+    const SUBJECTS_WITHOUT_GRADES = new Set(['융합탐구']);
+    const DEFAULT_SUBJECT_WEIGHTS = [
+      3, 3, 4, 4, 3, 3, 3, 3,
+      3, 3, 3, 3, 3, 3, 2, 3, 3, 3
+    ];
     const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const STORAGE_KEY = 'grades:studentDataset';
     const EXAM_STEPS = [
@@ -161,14 +165,14 @@
       ...OVERALL_CHART_SUBJECTS.semester2
     ]));
     const CHART_GROUPS = [
-      { id: 'overallChart', title: '전체 성적 추이', subjects: OVERALL_CHART_SUBJECT_LIST, perExamSubjects: OVERALL_CHART_SUBJECTS },
+      { id: 'overallChart', title: '전체 성적 추이', subjects: OVERALL_CHART_SUBJECT_LIST, perExamSubjects: OVERALL_CHART_SUBJECTS, useWeightedGrades: true },
       { id: 'koreanChart', title: '공통국어 성적 추이', subjects: ['공통국어1','공통국어2'] },
       { id: 'mathChart', title: '수학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분'] },
       { id: 'englishChart', title: '공통영어 성적 추이', subjects: ['공통영어1','공통영어2'] },
       { id: 'socialChart', title: '통합사회 성적 추이', subjects: ['통합사회1','통합사회2'] },
       { id: 'fusionChart', title: '융합탐구 성적 비교', subjects: ['융합탐구'], mode: 'fusion' },
-      { id: 'scienceChart', title: '과학 (통합과학1, 통합과학2, 융합탐구, 역학과 에너지, 화학, 생명과학, 지구과학, 정보과학) 성적 추이', subjects: ['통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'] },
-      { id: 'stemChart', title: '수과학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분','통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'] }
+      { id: 'scienceChart', title: '과학 (통합과학1, 통합과학2, 융합탐구, 역학과 에너지, 화학, 생명과학, 지구과학, 정보과학) 성적 추이', subjects: ['통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'], useWeightedGrades: true },
+      { id: 'stemChart', title: '수과학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분','통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'], useWeightedGrades: true }
     ];
 
     function createEmptyTermSubjectAvailability() {
@@ -315,6 +319,11 @@
       return result;
     }
 
+    function getSubjectWeight(subjectIndex) {
+      const weight = DEFAULT_SUBJECT_WEIGHTS[subjectIndex];
+      return Number.isFinite(weight) ? weight : 0;
+    }
+
     function computeGradeSlices(totalCount) {
       if (!Number.isFinite(totalCount) || totalCount <= 0) return [];
       const slices = [];
@@ -386,6 +395,7 @@
         });
 
         const totals = [];
+        const allowedSubjects = new Set(OVERALL_CHART_SUBJECTS[key] || TERM_SUBJECTS[key] || []);
         Object.entries(studentData).forEach(([name, info]) => {
           const termScores = info?.[key];
           if (!Array.isArray(termScores)) return;
@@ -393,8 +403,11 @@
           let hasValid = false;
           termScores.forEach((score, index) => {
             if (!isSubjectAvailableForTerm(key, index)) return;
-            if (Number.isFinite(score)) {
-              sum += score;
+            const subjectName = SUBJECTS[index];
+            if (allowedSubjects.size && !allowedSubjects.has(subjectName)) return;
+            const weight = getSubjectWeight(index);
+            if (Number.isFinite(score) && weight > 0) {
+              sum += score * weight;
               hasValid = true;
             }
           });
@@ -442,7 +455,8 @@
       return examRanking.get(name) ?? null;
     }
 
-    function buildExamGroupStats(subjects, perExamSubjects = null) {
+    function buildExamGroupStats(subjects, perExamSubjects = null, options = {}) {
+      const { useWeightedGrades = false } = options;
       const statsByExam = {};
       EXAM_STEPS.forEach(({ key }) => {
         const allowedList = perExamSubjects?.[key] || TERM_SUBJECTS[key] || [];
@@ -451,6 +465,8 @@
 
         Object.entries(studentData).forEach(([studentName]) => {
           const grades = [];
+          let weightedSum = 0;
+          let totalWeight = 0;
           subjects.forEach(subjectName => {
             if (allowedSubjects.size && !allowedSubjects.has(subjectName)) return;
             const subjectIndex = SUBJECTS.indexOf(subjectName);
@@ -459,11 +475,24 @@
             const rankingInfo = getRankingInfo(key, subjectIndex, studentName);
             const gradeValue = rankingInfo?.grade;
             if (Number.isFinite(gradeValue)) {
-              grades.push(gradeValue);
+              if (useWeightedGrades) {
+                const weight = getSubjectWeight(subjectIndex);
+                if (weight > 0) {
+                  weightedSum += gradeValue * weight;
+                  totalWeight += weight;
+                }
+              } else {
+                grades.push(gradeValue);
+              }
             }
           });
 
-          if (grades.length) {
+          if (useWeightedGrades) {
+            if (totalWeight > 0) {
+              const average = weightedSum / totalWeight;
+              entries.push({ name: studentName, average });
+            }
+          } else if (grades.length) {
             const average = grades.reduce((sum, value) => sum + value, 0) / grades.length;
             entries.push({ name: studentName, average });
           }
@@ -826,7 +855,8 @@
         const rankingByExam = {};
         const statsByExam = buildExamGroupStats(
           relevantSubjects.map(item => item.name),
-          group.perExamSubjects
+          group.perExamSubjects,
+          { useWeightedGrades: group.useWeightedGrades }
         );
 
         EXAM_STEPS.forEach(({ key, label }) => {
