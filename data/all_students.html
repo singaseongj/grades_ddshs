@@ -476,8 +476,7 @@
     function deriveActiveSubjectIndices(availability) {
       return SUBJECTS.map((_, index) => index).filter(index => {
         return EXAM_STEPS.some(({ key }) => availability?.[key]?.[index]);
-      })
-      .filter(Boolean);
+      });
     }
 
     let termSubjectAvailability = createEmptyTermSubjectAvailability();
