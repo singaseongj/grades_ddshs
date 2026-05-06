@@ -458,8 +458,9 @@
       if (!dataset || typeof dataset !== 'object') return availability;
 
       Object.values(dataset).forEach(info => {
+        const normalizedSemesters = getNormalizedSemesters(info);
         EXAM_STEPS.forEach(({ key }) => {
-          const termScores = info?.[key];
+          const termScores = normalizedSemesters?.[key];
           if (!Array.isArray(termScores)) return;
           termScores.forEach((value, index) => {
             const numeric = toFiniteNumber(value);
@@ -620,6 +621,30 @@
       });
     }
 
+    function parseLegacyFlatTermScores(info, prefix) {
+      if (!info || typeof info !== 'object') {
+        return Array(SUBJECTS.length).fill(null);
+      }
+      return SUBJECTS.map(subjectName => {
+        const key = `${prefix}_${subjectName}`;
+        const numeric = toFiniteNumber(info[key]);
+        return Number.isFinite(numeric) ? numeric : null;
+      });
+    }
+
+    function getNormalizedSemesters(info) {
+      const semester1 = sanitizeTermScores(info?.semester1);
+      const semester2 = sanitizeTermScores(info?.semester2);
+      const hasStructuredScores = semester1.some(Number.isFinite) || semester2.some(Number.isFinite);
+      if (hasStructuredScores) {
+        return { semester1, semester2 };
+      }
+      return {
+        semester1: parseLegacyFlatTermScores(info, 's1'),
+        semester2: parseLegacyFlatTermScores(info, 's2')
+      };
+    }
+
     function calculateSubjectAverage(student, index) {
       if (!isSubjectActive(index)) return null;
       const terms = [student.semester1, student.semester2];
@@ -649,10 +674,7 @@
         if (!studentIdText && Number.isFinite(studentId)) {
           studentIdText = String(studentId);
         }
-        const normalizedSemesters = {
-          semester1: sanitizeTermScores(info.semester1),
-          semester2: sanitizeTermScores(info.semester2)
-        };
+        const normalizedSemesters = getNormalizedSemesters(info);
         const subjectAverages = SUBJECTS.map((_, idx) => calculateSubjectAverage(normalizedSemesters, idx));
         const validScores = subjectAverages.filter(value => Number.isFinite(value));
         const totalScore = validScores.reduce((sum, value) => sum + value, 0);
