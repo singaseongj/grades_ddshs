@@ -23,6 +23,7 @@
       <div class="search-box">
         <label for="studentName">학생 이름:</label>
         <input type="text" id="studentName" placeholder="엑셀 업로드 후 사용 가능" disabled />
+        <select id="studentSelect" disabled style="display:none;"></select>
         <button id="btnSearch" onclick="searchStudent()" disabled>검색</button>
         <button id="btnClear" onclick="resetApp()">초기화</button>
       </div>
@@ -260,6 +261,9 @@
 
       document.getElementById('btnSearch').disabled = true;
       document.getElementById('btnClear').disabled = false;
+
+      const select = document.getElementById('studentSelect');
+      if (select) { select.innerHTML = ''; select.style.display = 'none'; select.disabled = true; }
 
       const info = document.getElementById('studentInfo');
       info.classList.remove('active');
@@ -581,10 +585,11 @@
           const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
           const newData = {};
-          rows.forEach(row => {
+          rows.forEach((row, index) => {
             const name = String(row['이름'] ?? '').trim();
             if (!name) return;
             const number = extractStudentId(row);
+            const uniqueKey = number || `${name}__${index}`;
 
             const buildTermScores = termKey => {
               const mapping = TERM_SUBJECT_COLUMNS[termKey] || {};
@@ -610,7 +615,8 @@
             const s2 = buildTermScores('semester2');
 
             const hasValid = arr => Array.isArray(arr) && arr.some(value => Number.isFinite(value));
-            newData[name] = {
+            newData[uniqueKey] = {
+              name,
               number: number || '',
               semester1: hasValid(s1) ? s1 : Array(SUBJECTS.length).fill(null),
               semester2: hasValid(s2) ? s2 : Array(SUBJECTS.length).fill(null)
@@ -633,7 +639,7 @@
 
           // 현재 표시 중인 학생이 있으면 새 데이터 기준으로 갱신
           const current = document.getElementById('studentName').value.trim();
-          if (current && studentData[current]) searchStudent();
+          if (current) searchStudent();
 
           evt.target.value = '';
         } catch (err) {
@@ -654,7 +660,7 @@
       document.getElementById('btnClear').disabled = false;
 
       // 힌트 변경
-      document.getElementById('studentName').placeholder = '이름을 입력하세요';
+      document.getElementById('studentName').placeholder = '이름 또는 학번을 입력하세요';
     }
 
     function loadStoredDataset() {
@@ -712,6 +718,44 @@
       enableUIAfterLoad();
     }
 
+
+    function normalizeStudentName(studentKey, student) {
+      if (student && typeof student.name === 'string' && student.name.trim()) return student.name.trim();
+      return String(studentKey ?? '').trim();
+    }
+
+    function getMatchedStudents(keyword) {
+      const trimmed = String(keyword ?? '').trim();
+      if (!trimmed) return [];
+      return Object.entries(studentData)
+        .map(([key, info]) => ({ key, info, name: normalizeStudentName(key, info), number: String(info?.number ?? '').trim() }))
+        .filter(item => item.name === trimmed || item.number === trimmed);
+    }
+
+    function showStudentSelect(matches) {
+      const select = document.getElementById('studentSelect');
+      if (!select) return;
+      select.innerHTML = '';
+      if (!Array.isArray(matches) || matches.length <= 1) {
+        select.style.display = 'none';
+        select.disabled = true;
+        return;
+      }
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '동명이인 선택: 학번을 선택하세요';
+      select.appendChild(placeholder);
+      matches.forEach(({ key, name, number }) => {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = `${name} (${number || '학번 없음'})`;
+        select.appendChild(option);
+      });
+      select.value = '';
+      select.disabled = false;
+      select.style.display = '';
+    }
+
     function searchStudent() {
       if (!dataLoaded) { alert('먼저 데이터를 업로드하세요.'); return; }
 
@@ -722,21 +766,38 @@
       const dataTable = document.getElementById('dataTable');
 
       errorMsg.style.display = 'none'; errorMsg.textContent = '';
-      if (!searchName) { errorMsg.textContent = '학생 이름을 입력해주세요.'; errorMsg.style.display = 'block'; return; }
+      if (!searchName) { errorMsg.textContent = '학생 이름 또는 학번을 입력해주세요.'; errorMsg.style.display = 'block'; return; }
 
-      const student = studentData[searchName];
-      if (!student) {
-        errorMsg.textContent = `'${searchName}' 학생을 찾을 수 없습니다. 정확한 이름을 입력해주세요.`;
+      const matches = getMatchedStudents(searchName);
+      if (!matches.length) {
+        showStudentSelect([]);
+        errorMsg.textContent = `'${searchName}' 학생을 찾을 수 없습니다. 정확한 이름/학번을 입력해주세요.`;
         errorMsg.style.display = 'block';
         studentInfo.classList.remove('active'); chartsSection.style.display = 'none'; dataTable.style.display = 'none';
         return;
       }
 
-      document.getElementById('displayName').textContent = searchName;
+      showStudentSelect(matches);
+      let target = matches[0];
+      if (matches.length > 1) {
+        const selectedKey = document.getElementById('studentSelect')?.value || '';
+        if (!selectedKey) {
+          errorMsg.textContent = `동명이인입니다. 학번을 선택해주세요.`;
+          errorMsg.style.display = 'block';
+          studentInfo.classList.remove('active'); chartsSection.style.display = 'none'; dataTable.style.display = 'none';
+          return;
+        }
+        target = matches.find(item => item.key === selectedKey) || null;
+        if (!target) return;
+      }
+
+      const student = target.info;
+      const displayName = target.name;
+      document.getElementById('displayName').textContent = displayName;
       document.getElementById('displayNumber').textContent = student.number ?? '';
       studentInfo.classList.add('active');
-      createCharts(searchName, student);
-      const hasRows = updateTable(searchName, student);
+      createCharts(target.key, student);
+      const hasRows = updateTable(target.key, student);
       dataTable.style.display = hasRows ? 'block' : 'none';
     }
 
@@ -1059,6 +1120,9 @@
     // Enter로 검색
     document.getElementById('studentName').addEventListener('keypress', function(e) {
       if (e.key === 'Enter') searchStudent();
+    });
+    document.getElementById('studentSelect').addEventListener('change', function() {
+      searchStudent();
     });
 
   </script>
