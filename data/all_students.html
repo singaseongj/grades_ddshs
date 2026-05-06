@@ -476,7 +476,8 @@
     function deriveActiveSubjectIndices(availability) {
       return SUBJECTS.map((_, index) => index).filter(index => {
         return EXAM_STEPS.some(({ key }) => availability?.[key]?.[index]);
-      });
+      })
+      .filter(Boolean);
     }
 
     let termSubjectAvailability = createEmptyTermSubjectAvailability();
@@ -638,8 +639,9 @@
 
     function buildStudentSummaries(dataset) {
       return Object.entries(dataset)
-        .filter(([name]) => !EXCLUDED_STUDENT_NAMES.has(name))
-        .map(([name, info]) => {
+        .map(([studentKey, info]) => {
+          const name = (info && typeof info.name === "string" && info.name.trim()) ? info.name.trim() : String(studentKey ?? "").trim();
+          if (EXCLUDED_STUDENT_NAMES.has(name)) return null;
         const studentId = toFiniteNumber(info.number);
         let studentIdText = '';
         if (info?.number !== undefined && info?.number !== null) {
@@ -674,7 +676,8 @@
           scienceMathAverageGradeText: '-',
           overallRank: 0
         };
-      });
+      })
+      .filter(Boolean);
     }
 
     function computeGradeSlices(total) {
