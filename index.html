@@ -732,7 +732,7 @@
         .filter(item => item.name === trimmed || item.number === trimmed);
     }
 
-    function showStudentSelect(matches) {
+    function showStudentSelect(matches, selectedKey = '') {
       const select = document.getElementById('studentSelect');
       if (!select) return;
       select.innerHTML = '';
@@ -751,7 +751,11 @@
         option.textContent = `${name} (${number || '학번 없음'})`;
         select.appendChild(option);
       });
-      select.value = '';
+      if (selectedKey && matches.some(item => item.key === selectedKey)) {
+        select.value = selectedKey;
+      } else {
+        select.value = '';
+      }
       select.disabled = false;
       select.style.display = '';
     }
@@ -777,10 +781,10 @@
         return;
       }
 
-      showStudentSelect(matches);
+      const selectedKey = document.getElementById('studentSelect')?.value || '';
+      showStudentSelect(matches, selectedKey);
       let target = matches[0];
       if (matches.length > 1) {
-        const selectedKey = document.getElementById('studentSelect')?.value || '';
         if (!selectedKey) {
           errorMsg.textContent = `동명이인입니다. 학번을 선택해주세요.`;
           errorMsg.style.display = 'block';
