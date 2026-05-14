@@ -614,11 +614,25 @@
       if (!Array.isArray(term)) {
         return Array(SUBJECTS.length).fill(null);
       }
-      return SUBJECTS.map((_, index) => {
+      const sanitized = SUBJECTS.map((_, index) => {
         if (index >= term.length) return null;
         const numeric = toFiniteNumber(term[index]);
         return Number.isFinite(numeric) ? numeric : null;
       });
+      const hasLegacyShift =
+        Number.isFinite(sanitized[5]) &&
+        Number.isFinite(sanitized[6]) &&
+        Number.isFinite(sanitized[7]) &&
+        !Number.isFinite(sanitized[8]);
+      if (!hasLegacyShift) return sanitized;
+      const shifted = Array(SUBJECTS.length).fill(null);
+      for (let i = 0; i <= 4; i += 1) shifted[i] = sanitized[i];
+      shifted[5] = null;
+      shifted[6] = sanitized[5];
+      shifted[7] = sanitized[6];
+      shifted[8] = sanitized[7];
+      for (let i = 9; i < SUBJECTS.length; i += 1) shifted[i] = sanitized[i];
+      return shifted;
     }
 
     function parseLegacyFlatTermScores(info, prefix) {
