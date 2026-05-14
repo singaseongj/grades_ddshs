@@ -135,6 +135,7 @@
     ];
     const SUBJECT_COUNT = SUBJECTS.length;
     const COLUMN_KEY_ALIASES = {
+      'S1_정보과학': ['S2_정보과학'],
       'S2_통합사회2': ['S2_통합사회']
     };
 
@@ -709,7 +710,45 @@
       return Number.isFinite(numeric) ? numeric : null;
     }
 
-    const storedDataset = loadStoredDataset();
+    function normalizeLegacyTermLayout(termScores, termKey) {
+      if (!Array.isArray(termScores)) return termScores;
+      if (termKey !== 'semester1') return termScores;
+      const normalized = SUBJECTS.map((_, index) => {
+        const numeric = toNum(termScores[index]);
+        return Number.isFinite(numeric) ? numeric : null;
+      });
+      const hasLegacyShift =
+        Number.isFinite(normalized[5]) &&
+        Number.isFinite(normalized[6]) &&
+        Number.isFinite(normalized[7]) &&
+        !Number.isFinite(normalized[8]);
+      if (!hasLegacyShift) return normalized;
+      const shifted = Array(SUBJECTS.length).fill(null);
+      for (let i = 0; i <= 4; i += 1) shifted[i] = normalized[i];
+      shifted[5] = null; // 정보과학(구버전 파일에는 없음)
+      shifted[6] = normalized[5];
+      shifted[7] = normalized[6];
+      shifted[8] = normalized[7];
+      for (let i = 9; i < SUBJECTS.length; i += 1) shifted[i] = normalized[i];
+      return shifted;
+    }
+
+    function normalizeDatasetLayout(dataset) {
+      if (!dataset || typeof dataset !== 'object') return dataset;
+      const normalizedDataset = {};
+      Object.entries(dataset).forEach(([key, info]) => {
+        const semester1 = normalizeLegacyTermLayout(info?.semester1, 'semester1');
+        const semester2 = normalizeLegacyTermLayout(info?.semester2, 'semester2');
+        normalizedDataset[key] = {
+          ...info,
+          semester1: Array.isArray(semester1) ? semester1 : Array(SUBJECTS.length).fill(null),
+          semester2: Array.isArray(semester2) ? semester2 : Array(SUBJECTS.length).fill(null)
+        };
+      });
+      return normalizedDataset;
+    }
+
+    const storedDataset = normalizeDatasetLayout(loadStoredDataset());
     if (storedDataset && Object.keys(storedDataset).length > 0) {
       updateSubjectAvailabilityFromDataset(storedDataset);
       studentData = storedDataset;
