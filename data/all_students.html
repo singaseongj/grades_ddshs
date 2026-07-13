@@ -462,7 +462,12 @@
         EXAM_STEPS.forEach(({ key }) => {
           const termScores = normalizedSemesters?.[key];
           if (!Array.isArray(termScores)) return;
+          const termSubjectSet = key === 'semester1'
+            ? new Set(['공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','정보과학','공통국어1','공통영어1','통합사회1'])
+            : new Set(['대수','미적분','역학과 에너지','화학','생명과학','지구과학','공통국어2','공통영어2','통합사회2']);
           termScores.forEach((value, index) => {
+            const subjectName = SUBJECTS[index];
+            if (!termSubjectSet.has(subjectName)) return;
             const numeric = toFiniteNumber(value);
             if (Number.isFinite(numeric)) {
               availability[key][index] = true;
