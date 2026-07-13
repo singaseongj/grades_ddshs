@@ -92,6 +92,9 @@
     let charts = {};
 
     document.getElementById('btnTemplate').addEventListener('click', downloadTemplate);
+    document.getElementById('studentName').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') searchStudent();
+    });
     document.getElementById('studentSelect').addEventListener('change', searchStudent);
 
     function extractStudentId(row) {
@@ -184,14 +187,37 @@
       return rankings;
     }
 
+    function calculateOverallGradeRankings(subjectRankings, examKey) {
+      const entries = Object.keys(studentData).map(key => {
+        const grades = SUBJECTS
+          .map((subject, index) => SUBJECTS_WITHOUT_GRADES.has(subject) ? null : subjectRankings[key]?.[examKey]?.[index]?.grade)
+          .filter(Number.isFinite);
+        return grades.length ? { key, averageGrade: average(grades) } : null;
+      }).filter(Boolean);
+      const ordered = entries.sort((a, b) => a.averageGrade - b.averageGrade);
+      const overall = {};
+      let previousAverage = null;
+      let previousRank = 0;
+      ordered.forEach((item, index) => {
+        const isTie = previousAverage !== null && Math.abs(previousAverage - item.averageGrade) < 1e-6;
+        const rank = isTie ? previousRank : index + 1;
+        overall[item.key] = { rank, averageGrade: item.averageGrade, total: ordered.length };
+        if (!isTie) { previousAverage = item.averageGrade; previousRank = rank; }
+      });
+      return overall;
+    }
+
     function getRankings() {
       const midterm = calculateExamRankings('midterm');
       const finalRanks = calculateExamRankings('final');
+      const midOverall = calculateOverallGradeRankings(midterm, 'midterm');
+      const finalOverall = calculateOverallGradeRankings(finalRanks, 'final');
       const merged = {};
       Object.keys(studentData).forEach(key => {
         merged[key] = {
           midterm: midterm[key]?.midterm || [],
-          final: finalRanks[key]?.final || []
+          final: finalRanks[key]?.final || [],
+          overall: { midterm: midOverall[key] || null, final: finalOverall[key] || null }
         };
       });
       return merged;
@@ -365,10 +391,14 @@
         const midRank = rankings.midterm?.[index]?.rank;
         const finalRank = rankings.final?.[index]?.rank;
         return Number.isFinite(midRank) && Number.isFinite(finalRank) ? finalRank - midRank : null;
-      }).filter(Number.isFinite);
-      const improved = changes.filter(value => value < 0).length;
-      const declined = changes.filter(value => value > 0).length;
-      const unchanged = changes.filter(value => value === 0).length;
+      });
+      const overallRankDiff = Number.isFinite(rankings.overall?.midterm?.rank) && Number.isFinite(rankings.overall?.final?.rank)
+        ? rankings.overall.final.rank - rankings.overall.midterm.rank
+        : null;
+      const comparableChanges = [...changes, overallRankDiff].filter(Number.isFinite);
+      const improved = comparableChanges.filter(value => value < 0).length;
+      const declined = comparableChanges.filter(value => value > 0).length;
+      const unchanged = comparableChanges.filter(value => value === 0).length;
       document.getElementById('summaryCards').innerHTML = `
         <div class="summary-card"><span class="label">등수 상승 과목</span><span class="value positive-diff">${improved}</span></div>
         <div class="summary-card"><span class="label">등수 하락 과목</span><span class="value negative-diff">${declined}</span></div>
@@ -377,26 +407,29 @@
 
     function renderCharts(student, rankings) {
       Object.values(charts).forEach(chart => chart?.destroy?.());
-      const midRanks = SUBJECTS.map((_, index) => rankings.midterm?.[index]?.rank ?? null);
-      const finalRanks = SUBJECTS.map((_, index) => rankings.final?.[index]?.rank ?? null);
-      const rankChanges = SUBJECTS.map((_, index) => {
-        const midRank = rankings.midterm?.[index]?.rank;
-        const finalRank = rankings.final?.[index]?.rank;
+      const chartLabels = [...SUBJECTS, '전체등수(등급기준)'];
+      const midRanks = [...SUBJECTS.map((_, index) => rankings.midterm?.[index]?.rank ?? null), rankings.overall?.midterm?.rank ?? null];
+      const finalRanks = [...SUBJECTS.map((_, index) => rankings.final?.[index]?.rank ?? null), rankings.overall?.final?.rank ?? null];
+      const rankChanges = chartLabels.map((_, index) => {
+        const midRank = midRanks[index];
+        const finalRank = finalRanks[index];
         return Number.isFinite(midRank) && Number.isFinite(finalRank) ? finalRank - midRank : null;
       });
       const maxRank = Math.max(1, ...[...midRanks, ...finalRanks].filter(Number.isFinite));
+      const changeValues = rankChanges.filter(Number.isFinite);
+      const maxAbsChange = Math.max(1, ...changeValues.map(value => Math.abs(value)));
       charts.subjectChart = new Chart(document.getElementById('subjectChart'), {
-        type: 'bar',
-        data: { labels: SUBJECTS, datasets: [
-          { label: '중간고사 등수', data: midRanks, backgroundColor: 'rgba(76, 175, 80, 0.75)' },
-          { label: '학기말 등수', data: finalRanks, backgroundColor: 'rgba(26, 115, 232, 0.75)' }
+        type: 'line',
+        data: { labels: chartLabels, datasets: [
+          { label: '중간고사 등수', data: midRanks, borderColor: 'rgba(76, 175, 80, 0.9)', backgroundColor: 'rgba(76, 175, 80, 0.15)', pointRadius: 4, tension: 0.25 },
+          { label: '학기말 등수', data: finalRanks, borderColor: 'rgba(26, 115, 232, 0.9)', backgroundColor: 'rgba(26, 115, 232, 0.15)', pointRadius: 4, tension: 0.25 }
         ]},
-        options: { responsive: true, scales: { y: { beginAtZero: true, reverse: true, max: maxRank } } }
+        options: { responsive: true, scales: { y: { min: 1, reverse: true, max: maxRank, ticks: { precision: 0 } } } }
       });
       charts.averageChart = new Chart(document.getElementById('averageChart'), {
-        type: 'bar',
-        data: { labels: SUBJECTS, datasets: [{ label: '등수 변화 (학기말-중간)', data: rankChanges, backgroundColor: rankChanges.map(value => value < 0 ? 'rgba(27, 94, 32, 0.75)' : value > 0 ? 'rgba(183, 28, 28, 0.75)' : 'rgba(85, 85, 85, 0.55)') }] },
-        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        type: 'line',
+        data: { labels: chartLabels, datasets: [{ label: '등수 변화 (학기말-중간)', data: rankChanges, borderColor: 'rgba(156, 39, 176, 0.9)', backgroundColor: 'rgba(156, 39, 176, 0.15)', pointRadius: 4, tension: 0.25 }] },
+        options: { responsive: true, scales: { y: { min: -maxAbsChange, max: maxAbsChange, reverse: true, ticks: { precision: 0 } } } }
       });
       document.getElementById('chartsSection').style.display = 'grid';
     }
@@ -418,11 +451,24 @@
           <td class="${rankDiffClass(rankDiff)}">${formatRankDiff(rankDiff)}</td>
           <td class="${rankDiffClass(gradeDiff)}">${Number.isFinite(gradeDiff) ? formatRankDiff(gradeDiff).replace(/등/g, '등급') : '-'}</td>
         </tr>`;
-      }).join('');
+      });
+      const overallMidRank = rankings.overall?.midterm?.rank;
+      const overallFinalRank = rankings.overall?.final?.rank;
+      const overallRankDiff = Number.isFinite(overallMidRank) && Number.isFinite(overallFinalRank) ? overallFinalRank - overallMidRank : null;
+      rows.push(`<tr>
+          <td>전체등수(등급기준)</td>
+          <td>${formatRank(overallMidRank)}</td>
+          <td>${Number.isFinite(rankings.overall?.midterm?.averageGrade) ? `${formatScore(rankings.overall.midterm.averageGrade)}등급 평균` : '-'}</td>
+          <td>${formatRank(overallFinalRank)}</td>
+          <td>${Number.isFinite(rankings.overall?.final?.averageGrade) ? `${formatScore(rankings.overall.final.averageGrade)}등급 평균` : '-'}</td>
+          <td class="${rankDiffClass(overallRankDiff)}">${formatRankDiff(overallRankDiff)}</td>
+          <td>-</td>
+        </tr>`);
+      const rowsHtml = rows.join('');
       document.getElementById('scoresTables').innerHTML = `
         <table class="comparison-table">
           <thead><tr><th>과목</th><th>중간고사 등수</th><th>중간고사 등급</th><th>학기말 등수</th><th>학기말 등급</th><th>등수 변화</th><th>등급 변화</th></tr></thead>
-          <tbody>${rows}</tbody>
+          <tbody>${rowsHtml}</tbody>
         </table>`;
       document.getElementById('dataTable').style.display = 'block';
     }
