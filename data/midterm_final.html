@@ -425,6 +425,14 @@
       const maxRank = Math.max(1, ...rankTotals, ...[...midRanks, ...finalRanks].filter(Number.isFinite));
       const changeValues = rankChanges.filter(Number.isFinite);
       const maxAbsChange = Math.max(1, ...changeValues.map(value => Math.abs(value)));
+      const rankChangeBarColors = rankChanges.map(value => {
+        if (!Number.isFinite(value) || value === 0) return 'rgba(95, 99, 104, 0.55)';
+        return value < 0 ? 'rgba(244, 67, 54, 0.55)' : 'rgba(26, 115, 232, 0.55)';
+      });
+      const rankChangeBorderColors = rankChanges.map(value => {
+        if (!Number.isFinite(value) || value === 0) return 'rgba(95, 99, 104, 0.9)';
+        return value < 0 ? 'rgba(244, 67, 54, 0.9)' : 'rgba(26, 115, 232, 0.9)';
+      });
       charts.subjectChart = new Chart(document.getElementById('subjectChart'), {
         type: 'bar',
         data: { labels: chartLabels, datasets: [
@@ -435,7 +443,7 @@
       });
       charts.averageChart = new Chart(document.getElementById('averageChart'), {
         type: 'bar',
-        data: { labels: chartLabels, datasets: [{ label: '등수 변화 (학기말-중간)', data: rankChanges, borderColor: 'rgba(156, 39, 176, 0.9)', backgroundColor: 'rgba(156, 39, 176, 0.55)', borderWidth: 1 }] },
+        data: { labels: chartLabels, datasets: [{ label: '등수 변화 (학기말-중간)', data: rankChanges, borderColor: rankChangeBorderColors, backgroundColor: rankChangeBarColors, borderWidth: 1 }] },
         options: { responsive: true, scales: { y: { min: -maxAbsChange, max: maxAbsChange, reverse: true, ticks: { precision: 0 } } } }
       });
       document.getElementById('chartsSection').style.display = 'grid';
