@@ -417,14 +417,19 @@
         const finalRank = finalRanks[index];
         return Number.isFinite(midRank) && Number.isFinite(finalRank) ? finalRank - midRank : null;
       });
-      const maxRank = Math.max(1, ...[...midRanks, ...finalRanks].filter(Number.isFinite));
+      const rankTotals = [
+        ...SUBJECTS.flatMap((_, index) => [rankings.midterm?.[index]?.total, rankings.final?.[index]?.total]),
+        rankings.overall?.midterm?.total,
+        rankings.overall?.final?.total
+      ].filter(Number.isFinite);
+      const maxRank = Math.max(1, ...rankTotals, ...[...midRanks, ...finalRanks].filter(Number.isFinite));
       const changeValues = rankChanges.filter(Number.isFinite);
       const maxAbsChange = Math.max(1, ...changeValues.map(value => Math.abs(value)));
       charts.subjectChart = new Chart(document.getElementById('subjectChart'), {
         type: 'bar',
         data: { labels: chartLabels, datasets: [
-          { label: '중간고사 등수', data: midRanks, borderColor: 'rgba(76, 175, 80, 0.9)', backgroundColor: 'rgba(76, 175, 80, 0.55)', borderWidth: 1 },
-          { label: '학기말 등수', data: finalRanks, borderColor: 'rgba(26, 115, 232, 0.9)', backgroundColor: 'rgba(26, 115, 232, 0.55)', borderWidth: 1 }
+          { label: '중간고사 등수', data: midRanks, base: maxRank, borderColor: 'rgba(76, 175, 80, 0.9)', backgroundColor: 'rgba(76, 175, 80, 0.55)', borderWidth: 1 },
+          { label: '학기말 등수', data: finalRanks, base: maxRank, borderColor: 'rgba(26, 115, 232, 0.9)', backgroundColor: 'rgba(26, 115, 232, 0.55)', borderWidth: 1 }
         ]},
         options: { responsive: true, scales: { y: { min: 1, reverse: true, max: maxRank, ticks: { precision: 0 } } } }
       });
