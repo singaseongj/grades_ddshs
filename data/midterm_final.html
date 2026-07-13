@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>중간고사와 학기말 성적비교</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="../style.css" />
+  <style>
+    .comparison-description { color: #555; line-height: 1.6; margin: -8px 0 18px; text-align: center; }
+    .back-button {
+      display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; margin-bottom: 18px;
+      background-color: #e8f0fe; color: #1a73e8; border-radius: 999px; font-weight: 600;
+      text-decoration: none; box-shadow: 0 1px 3px rgba(26, 39, 86, 0.15);
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+    .back-button:hover { background-color: #d2e3fc; color: #0c47a1; }
+    .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-top: 18px; }
+    .summary-card { background: #f0f4ff; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 4px rgba(26, 39, 86, 0.12); }
+    .summary-card .label { display: block; color: #5f6368; font-size: 14px; margin-bottom: 6px; }
+    .summary-card .value { display: block; color: #1a237e; font-size: 20px; font-weight: 700; }
+    .positive-diff { color: #1b5e20; font-weight: 700; }
+    .negative-diff { color: #b71c1c; font-weight: 700; }
+    .neutral-diff { color: #555; font-weight: 700; }
+    .comparison-table th { font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a class="back-button" href="../index.html"><span aria-hidden="true">←</span> 학생별 성적 추이로 돌아가기</a>
+    <header class="page-header">
+      <h1>중간고사와 학기말 성적비교</h1>
+    </header>
+    <p class="comparison-description">중간고사와 학기말 성적을 한 파일로 업로드하여 학생별 과목 점수 변화와 평균 변화를 비교합니다.</p>
+
+    <div class="search-section">
+      <div class="search-box">
+        <label for="studentName">학생 이름:</label>
+        <input type="text" id="studentName" placeholder="엑셀 업로드 후 사용 가능" disabled />
+        <select id="studentSelect" disabled style="display:none;"></select>
+        <button id="btnSearch" onclick="searchStudent()" disabled>검색</button>
+        <button id="btnClear" onclick="resetApp()">초기화</button>
+      </div>
+      <div class="io-section">
+        <label for="xlsxInput" class="button-like" id="btnUpload">업로드 (.xlsx)</label>
+        <input type="file" id="xlsxInput" accept=".xlsx,.xls" onchange="uploadXLSX(event)" />
+        <a href="#" id="btnTemplate" class="template-link">양식 다운로드</a>
+      </div>
+      <div class="hint">양식 다운로드로 받은 파일에 중간고사·학기말 점수를 입력한 뒤 업로드하세요.</div>
+      <div class="hint privacy-note">업로드된 엑셀은 브라우저 메모리에서만 처리되며 다른 사용자와 공유되지 않습니다.</div>
+      <div class="error-message" id="errorMessage"></div>
+      <div class="student-info" id="studentInfo">
+        <div class="info-row">
+          <div class="info-item"><span class="info-label">이름:</span><span id="displayName"></span></div>
+          <div class="info-item"><span class="info-label">학번:</span><span id="displayNumber"></span></div>
+        </div>
+        <div class="summary-cards" id="summaryCards"></div>
+      </div>
+    </div>
+
+    <div class="charts-section" id="chartsSection" style="display:none;">
+      <div class="chart-container">
+        <div class="chart-title">과목별 중간·학기말 점수 비교</div><canvas id="subjectChart"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">평균 점수 변화</div><canvas id="averageChart"></canvas>
+      </div>
+    </div>
+
+    <div class="data-table" id="dataTable">
+      <h3>📋 상세 성적 데이터 : 중간고사 / 학기말 / 변화</h3>
+      <div id="scoresTables" class="scores-table-wrapper"></div>
+    </div>
+
+    <footer class="page-footer">
+      <p>데이터 입력 오류나 기준 변경이 있을 수 있으므로 반드시 학생의 실제 성적과 교차 검토를 거쳐 확인해 주세요.</p>
+    </footer>
+  </div>
+
+  <script>
+    const SUBJECTS = ['공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','정보과학','공통국어1','공통영어1','통합사회1'];
+    const EXAMS = [
+      { key: 'midterm', label: '중간고사', prefix: '중간_' },
+      { key: 'final', label: '학기말', prefix: '기말_' }
+    ];
+    const STORAGE_KEY = 'grades:midtermFinalDataset';
+    let studentData = {};
+    let dataLoaded = false;
+    let charts = {};
+
+    document.getElementById('btnTemplate').addEventListener('click', downloadTemplate);
+    document.getElementById('studentSelect').addEventListener('change', searchStudent);
+
+    function extractStudentId(row) {
+      for (const key of ['학번', '번호']) {
+        if (Object.prototype.hasOwnProperty.call(row, key)) {
+          const value = String(row[key] ?? '').trim();
+          if (value) return value;
+        }
+      }
+      return '';
+    }
+
+    function toNum(value) {
+      if (value === null || value === undefined) return null;
+      if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+      const trimmed = String(value).trim();
+      if (!trimmed) return null;
+      const numeric = Number(trimmed);
+      return Number.isFinite(numeric) ? numeric : null;
+    }
+
+    function average(values) {
+      const valid = values.filter(Number.isFinite);
+      return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : null;
+    }
+
+    function formatScore(value) { return Number.isFinite(value) ? value.toFixed(1).replace(/\.0$/, '') : '-'; }
+    function formatDiff(value) {
+      if (!Number.isFinite(value)) return '-';
+      const prefix = value > 0 ? '+' : '';
+      return `${prefix}${value.toFixed(1).replace(/\.0$/, '')}`;
+    }
+    function diffClass(value) {
+      if (!Number.isFinite(value) || Math.abs(value) < 1e-9) return 'neutral-diff';
+      return value > 0 ? 'positive-diff' : 'negative-diff';
+    }
+
+    function downloadTemplate(evt) {
+      evt.preventDefault();
+      const headers = ['이름','학번'];
+      EXAMS.forEach(({ prefix }) => SUBJECTS.forEach(subject => headers.push(`${prefix}${subject}`)));
+      const sample = ['홍길동','101', 92, 90, 88, 89, 91, 95, 93, 94, 90, 95, 92, 90, 91, 92, 96, 94, 95, 92];
+      const blank = ['김철수','102', ...Array(SUBJECTS.length * EXAMS.length).fill('')];
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, sample, blank]);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
+      XLSX.writeFile(workbook, '중간고사_학기말_성적비교_양식.xlsx');
+    }
+
+    function uploadXLSX(evt) {
+      const file = evt.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const workbook = XLSX.read(new Uint8Array(event.target.result), { type: 'array' });
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+          const nextData = {};
+          rows.forEach((row, index) => {
+            const name = String(row['이름'] ?? '').trim();
+            if (!name) return;
+            const number = extractStudentId(row);
+            const uniqueKey = number || `${name}__${index}`;
+            const scores = {};
+            EXAMS.forEach(({ key, prefix }) => {
+              scores[key] = SUBJECTS.map(subject => toNum(row[`${prefix}${subject}`]));
+            });
+            if (![...scores.midterm, ...scores.final].some(Number.isFinite)) return;
+            nextData[uniqueKey] = { name, number, ...scores };
+          });
+          if (!Object.keys(nextData).length) {
+            alert('업로드할 데이터가 비어있거나 형식이 맞지 않습니다.');
+            evt.target.value = '';
+            return;
+          }
+          studentData = nextData;
+          dataLoaded = true;
+          persistStudentDataset(studentData);
+          enableUIAfterLoad();
+          alert('엑셀 데이터가 성공적으로 업로드되었습니다.');
+          evt.target.value = '';
+        } catch (error) {
+          console.error(error);
+          alert('파일을 처리하는 중 오류가 발생했습니다.');
+        }
+      };
+      reader.onerror = () => alert('파일을 읽는 중 오류가 발생했습니다.');
+      reader.readAsArrayBuffer(file);
+    }
+
+    function enableUIAfterLoad() {
+      const input = document.getElementById('studentName');
+      input.disabled = false;
+      input.placeholder = '이름 또는 학번을 입력하세요';
+      document.getElementById('btnSearch').disabled = false;
+    }
+
+    function persistStudentDataset(dataset) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(dataset)); } catch (error) { console.error(error); }
+    }
+    function loadStoredDataset() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (error) { console.error(error); return null; }
+    }
+    function clearStoredDataset() {
+      try { localStorage.removeItem(STORAGE_KEY); } catch (error) { console.error(error); }
+    }
+
+    function resetApp() {
+      Object.values(charts).forEach(chart => chart?.destroy?.());
+      charts = {};
+      studentData = {};
+      dataLoaded = false;
+      clearStoredDataset();
+      document.getElementById('studentName').value = '';
+      document.getElementById('studentName').disabled = true;
+      document.getElementById('studentName').placeholder = '엑셀 업로드 후 사용 가능';
+      document.getElementById('btnSearch').disabled = true;
+      document.getElementById('studentSelect').innerHTML = '';
+      document.getElementById('studentSelect').style.display = 'none';
+      document.getElementById('studentSelect').disabled = true;
+      document.getElementById('studentInfo').classList.remove('active');
+      document.getElementById('chartsSection').style.display = 'none';
+      document.getElementById('dataTable').style.display = 'none';
+      document.getElementById('scoresTables').innerHTML = '';
+      document.getElementById('summaryCards').innerHTML = '';
+      document.getElementById('errorMessage').style.display = 'none';
+      document.getElementById('xlsxInput').value = '';
+      alert('모든 데이터가 초기화되었습니다.');
+    }
+
+    function normalizeStudentName(key, student) { return String(student?.name || key || '').trim(); }
+    function getMatchedStudents(keyword) {
+      const trimmed = String(keyword ?? '').trim();
+      if (!trimmed) return [];
+      return Object.entries(studentData)
+        .map(([key, info]) => ({ key, info, name: normalizeStudentName(key, info), number: String(info?.number ?? '').trim() }))
+        .filter(item => item.name === trimmed || item.number === trimmed);
+    }
+    function showStudentSelect(matches, selectedKey = '') {
+      const select = document.getElementById('studentSelect');
+      select.innerHTML = '';
+      if (!matches || matches.length <= 1) { select.style.display = 'none'; select.disabled = true; return; }
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '동명이인 선택: 학번을 선택하세요';
+      select.appendChild(placeholder);
+      matches.forEach(({ key, name, number }) => {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = `${name} (${number || '학번 없음'})`;
+        select.appendChild(option);
+      });
+      select.value = selectedKey && matches.some(item => item.key === selectedKey) ? selectedKey : '';
+      select.disabled = false;
+      select.style.display = '';
+    }
+
+    function searchStudent() {
+      if (!dataLoaded) { alert('먼저 데이터를 업로드하세요.'); return; }
+      const keyword = document.getElementById('studentName').value.trim();
+      const errorMessage = document.getElementById('errorMessage');
+      errorMessage.style.display = 'none';
+      errorMessage.textContent = '';
+      if (!keyword) { errorMessage.textContent = '학생 이름 또는 학번을 입력해주세요.'; errorMessage.style.display = 'block'; return; }
+      const matches = getMatchedStudents(keyword);
+      if (!matches.length) {
+        showStudentSelect([]);
+        errorMessage.textContent = `'${keyword}' 학생을 찾을 수 없습니다. 정확한 이름/학번을 입력해주세요.`;
+        errorMessage.style.display = 'block';
+        document.getElementById('studentInfo').classList.remove('active');
+        document.getElementById('chartsSection').style.display = 'none';
+        document.getElementById('dataTable').style.display = 'none';
+        return;
+      }
+      const selectedKey = document.getElementById('studentSelect').value;
+      showStudentSelect(matches, selectedKey);
+      let target = matches[0];
+      if (matches.length > 1) {
+        if (!selectedKey) {
+          errorMessage.textContent = '동명이인입니다. 학번을 선택해주세요.';
+          errorMessage.style.display = 'block';
+          return;
+        }
+        target = matches.find(item => item.key === selectedKey);
+      }
+      renderStudent(target);
+    }
+
+    function renderStudent(target) {
+      const student = target.info;
+      document.getElementById('displayName').textContent = target.name;
+      document.getElementById('displayNumber').textContent = student.number || '';
+      document.getElementById('studentInfo').classList.add('active');
+      renderSummary(student);
+      renderCharts(student);
+      renderTable(student);
+    }
+
+    function renderSummary(student) {
+      const midAvg = average(student.midterm || []);
+      const finalAvg = average(student.final || []);
+      const diff = Number.isFinite(midAvg) && Number.isFinite(finalAvg) ? finalAvg - midAvg : null;
+      document.getElementById('summaryCards').innerHTML = `
+        <div class="summary-card"><span class="label">중간고사 평균</span><span class="value">${formatScore(midAvg)}</span></div>
+        <div class="summary-card"><span class="label">학기말 평균</span><span class="value">${formatScore(finalAvg)}</span></div>
+        <div class="summary-card"><span class="label">평균 변화</span><span class="value ${diffClass(diff)}">${formatDiff(diff)}</span></div>`;
+    }
+
+    function renderCharts(student) {
+      Object.values(charts).forEach(chart => chart?.destroy?.());
+      const midterm = student.midterm || [];
+      const finalScores = student.final || [];
+      charts.subjectChart = new Chart(document.getElementById('subjectChart'), {
+        type: 'bar',
+        data: { labels: SUBJECTS, datasets: [
+          { label: '중간고사', data: midterm, backgroundColor: 'rgba(76, 175, 80, 0.75)' },
+          { label: '학기말', data: finalScores, backgroundColor: 'rgba(26, 115, 232, 0.75)' }
+        ]},
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
+      });
+      charts.averageChart = new Chart(document.getElementById('averageChart'), {
+        type: 'line',
+        data: { labels: ['중간고사', '학기말'], datasets: [{ label: '평균', data: [average(midterm), average(finalScores)], borderColor: '#1a73e8', backgroundColor: 'rgba(26, 115, 232, 0.15)', tension: 0.25, fill: true }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
+      });
+      document.getElementById('chartsSection').style.display = 'grid';
+    }
+
+    function renderTable(student) {
+      const rows = SUBJECTS.map((subject, index) => {
+        const midterm = student.midterm?.[index];
+        const finalScore = student.final?.[index];
+        const diff = Number.isFinite(midterm) && Number.isFinite(finalScore) ? finalScore - midterm : null;
+        return `<tr><td>${subject}</td><td>${formatScore(midterm)}</td><td>${formatScore(finalScore)}</td><td class="${diffClass(diff)}">${formatDiff(diff)}</td></tr>`;
+      }).join('');
+      document.getElementById('scoresTables').innerHTML = `
+        <table class="comparison-table">
+          <thead><tr><th>과목</th><th>중간고사</th><th>학기말</th><th>변화(학기말-중간)</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+      document.getElementById('dataTable').style.display = 'block';
+    }
+
+    const storedDataset = loadStoredDataset();
+    if (storedDataset && typeof storedDataset === 'object' && Object.keys(storedDataset).length) {
+      studentData = storedDataset;
+      dataLoaded = true;
+      enableUIAfterLoad();
+    }
+  </script>
+</body>
+</html>
