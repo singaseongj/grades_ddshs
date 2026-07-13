@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>중간고사와 학기말 성적비교</title>
+  <title>중간고사 학기말 성적비교 1.0</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <link rel="stylesheet" href="../style.css" />
@@ -30,9 +30,9 @@
   <div class="container">
     <a class="back-button" href="../index.html"><span aria-hidden="true">←</span> 학생별 성적 추이로 돌아가기</a>
     <header class="page-header">
-      <h1>중간고사와 학기말 성적비교</h1>
+      <h1>중간고사 학기말 성적비교 1.0</h1>
     </header>
-    <p class="comparison-description">중간고사와 학기말 성적을 한 파일로 업로드하여 학생별 과목 점수 변화와 평균 변화를 비교합니다.</p>
+    <p class="comparison-description">중간고사와 학기말 성적을 한 파일로 업로드하여 학생별 과목 등수 변화와 등급 변화를 비교합니다.</p>
 
     <div class="search-section">
       <div class="search-box">
@@ -61,10 +61,10 @@
 
     <div class="charts-section" id="chartsSection" style="display:none;">
       <div class="chart-container">
-        <div class="chart-title">과목별 중간·학기말 점수 비교</div><canvas id="subjectChart"></canvas>
+        <div class="chart-title">과목별 중간·학기말 등수 비교</div><canvas id="subjectChart"></canvas>
       </div>
       <div class="chart-container">
-        <div class="chart-title">평균 점수 변화</div><canvas id="averageChart"></canvas>
+        <div class="chart-title">등수 변화</div><canvas id="averageChart"></canvas>
       </div>
     </div>
 
@@ -84,6 +84,8 @@
       { key: 'midterm', label: '중간고사', prefix: '중간_' },
       { key: 'final', label: '학기말', prefix: '기말_' }
     ];
+    const SUBJECTS_WITHOUT_GRADES = new Set(['융합탐구']);
+    const GRADE_CONFIG = [10, 24, 32, 24, 10];
     const STORAGE_KEY = 'grades:midtermFinalDataset';
     let studentData = {};
     let dataLoaded = false;
@@ -117,6 +119,8 @@
     }
 
     function formatScore(value) { return Number.isFinite(value) ? value.toFixed(1).replace(/\.0$/, '') : '-'; }
+    function formatRank(value) { return Number.isFinite(value) ? `${value}등` : '-'; }
+    function formatGrade(value) { return Number.isFinite(value) ? `${value}등급` : '-'; }
     function formatDiff(value) {
       if (!Number.isFinite(value)) return '-';
       const prefix = value > 0 ? '+' : '';
@@ -125,6 +129,72 @@
     function diffClass(value) {
       if (!Number.isFinite(value) || Math.abs(value) < 1e-9) return 'neutral-diff';
       return value > 0 ? 'positive-diff' : 'negative-diff';
+    }
+    function rankDiffClass(value) {
+      if (!Number.isFinite(value) || value === 0) return 'neutral-diff';
+      return value < 0 ? 'positive-diff' : 'negative-diff';
+    }
+    function formatRankDiff(value) {
+      if (!Number.isFinite(value)) return '-';
+      if (value === 0) return '변화 없음';
+      return value < 0 ? `${Math.abs(value)}등 상승` : `${value}등 하락`;
+    }
+
+    function computeGradeSlices(total) {
+      if (total <= 0) return [];
+      const slices = [];
+      let cumulativeEstimate = 0;
+      let previousEnd = 0;
+      GRADE_CONFIG.forEach((percent, index) => {
+        cumulativeEstimate += total * (percent / 100);
+        let endRank = index === GRADE_CONFIG.length - 1 ? total : Math.min(Math.round(cumulativeEstimate), total);
+        if (endRank < previousEnd) endRank = previousEnd;
+        const startRank = previousEnd + 1;
+        const adjustedEnd = Math.max(endRank, startRank - 1);
+        slices.push({ grade: index + 1, startRank, endRank: adjustedEnd });
+        previousEnd = adjustedEnd;
+      });
+      const lastSlice = slices[slices.length - 1];
+      if (lastSlice && lastSlice.endRank < total) lastSlice.endRank = total;
+      return slices;
+    }
+
+    function calculateExamRankings(examKey) {
+      const rankings = {};
+      SUBJECTS.forEach((subject, subjectIndex) => {
+        const candidates = Object.entries(studentData)
+          .map(([key, info]) => ({ key, score: info?.[examKey]?.[subjectIndex] }))
+          .filter(item => Number.isFinite(item.score));
+        const ordered = [...candidates].sort((a, b) => b.score - a.score);
+        const gradeSlices = SUBJECTS_WITHOUT_GRADES.has(subject) ? [] : computeGradeSlices(ordered.length);
+        let previousScore = null;
+        let previousRank = 0;
+        let previousGrade = null;
+        ordered.forEach((item, index) => {
+          const isTie = previousScore !== null && Math.abs(previousScore - item.score) < 1e-6;
+          const rank = isTie ? previousRank : index + 1;
+          const slice = gradeSlices.find(range => rank >= range.startRank && rank <= range.endRank) || gradeSlices[gradeSlices.length - 1];
+          const gradeValue = SUBJECTS_WITHOUT_GRADES.has(subject) ? null : (slice ? slice.grade : null);
+          const finalGrade = isTie && previousGrade !== null ? previousGrade : gradeValue;
+          rankings[item.key] ||= { midterm: [], final: [] };
+          rankings[item.key][examKey][subjectIndex] = { rank, grade: finalGrade, total: ordered.length };
+          if (!isTie) { previousScore = item.score; previousRank = rank; previousGrade = finalGrade; }
+        });
+      });
+      return rankings;
+    }
+
+    function getRankings() {
+      const midterm = calculateExamRankings('midterm');
+      const finalRanks = calculateExamRankings('final');
+      const merged = {};
+      Object.keys(studentData).forEach(key => {
+        merged[key] = {
+          midterm: midterm[key]?.midterm || [],
+          final: finalRanks[key]?.final || []
+        };
+      });
+      return merged;
     }
 
     function downloadTemplate(evt) {
@@ -281,54 +351,77 @@
 
     function renderStudent(target) {
       const student = target.info;
+      const rankings = getRankings()[target.key] || { midterm: [], final: [] };
       document.getElementById('displayName').textContent = target.name;
       document.getElementById('displayNumber').textContent = student.number || '';
       document.getElementById('studentInfo').classList.add('active');
-      renderSummary(student);
-      renderCharts(student);
-      renderTable(student);
+      renderSummary(student, rankings);
+      renderCharts(student, rankings);
+      renderTable(student, rankings);
     }
 
-    function renderSummary(student) {
-      const midAvg = average(student.midterm || []);
-      const finalAvg = average(student.final || []);
-      const diff = Number.isFinite(midAvg) && Number.isFinite(finalAvg) ? finalAvg - midAvg : null;
+    function renderSummary(student, rankings) {
+      const changes = SUBJECTS.map((_, index) => {
+        const midRank = rankings.midterm?.[index]?.rank;
+        const finalRank = rankings.final?.[index]?.rank;
+        return Number.isFinite(midRank) && Number.isFinite(finalRank) ? finalRank - midRank : null;
+      }).filter(Number.isFinite);
+      const improved = changes.filter(value => value < 0).length;
+      const declined = changes.filter(value => value > 0).length;
+      const unchanged = changes.filter(value => value === 0).length;
       document.getElementById('summaryCards').innerHTML = `
-        <div class="summary-card"><span class="label">중간고사 평균</span><span class="value">${formatScore(midAvg)}</span></div>
-        <div class="summary-card"><span class="label">학기말 평균</span><span class="value">${formatScore(finalAvg)}</span></div>
-        <div class="summary-card"><span class="label">평균 변화</span><span class="value ${diffClass(diff)}">${formatDiff(diff)}</span></div>`;
+        <div class="summary-card"><span class="label">등수 상승 과목</span><span class="value positive-diff">${improved}</span></div>
+        <div class="summary-card"><span class="label">등수 하락 과목</span><span class="value negative-diff">${declined}</span></div>
+        <div class="summary-card"><span class="label">등수 변화 없음</span><span class="value neutral-diff">${unchanged}</span></div>`;
     }
 
-    function renderCharts(student) {
+    function renderCharts(student, rankings) {
       Object.values(charts).forEach(chart => chart?.destroy?.());
-      const midterm = student.midterm || [];
-      const finalScores = student.final || [];
+      const midRanks = SUBJECTS.map((_, index) => rankings.midterm?.[index]?.rank ?? null);
+      const finalRanks = SUBJECTS.map((_, index) => rankings.final?.[index]?.rank ?? null);
+      const rankChanges = SUBJECTS.map((_, index) => {
+        const midRank = rankings.midterm?.[index]?.rank;
+        const finalRank = rankings.final?.[index]?.rank;
+        return Number.isFinite(midRank) && Number.isFinite(finalRank) ? finalRank - midRank : null;
+      });
+      const maxRank = Math.max(1, ...[...midRanks, ...finalRanks].filter(Number.isFinite));
       charts.subjectChart = new Chart(document.getElementById('subjectChart'), {
         type: 'bar',
         data: { labels: SUBJECTS, datasets: [
-          { label: '중간고사', data: midterm, backgroundColor: 'rgba(76, 175, 80, 0.75)' },
-          { label: '학기말', data: finalScores, backgroundColor: 'rgba(26, 115, 232, 0.75)' }
+          { label: '중간고사 등수', data: midRanks, backgroundColor: 'rgba(76, 175, 80, 0.75)' },
+          { label: '학기말 등수', data: finalRanks, backgroundColor: 'rgba(26, 115, 232, 0.75)' }
         ]},
-        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
+        options: { responsive: true, scales: { y: { beginAtZero: true, reverse: true, max: maxRank } } }
       });
       charts.averageChart = new Chart(document.getElementById('averageChart'), {
-        type: 'line',
-        data: { labels: ['중간고사', '학기말'], datasets: [{ label: '평균', data: [average(midterm), average(finalScores)], borderColor: '#1a73e8', backgroundColor: 'rgba(26, 115, 232, 0.15)', tension: 0.25, fill: true }] },
-        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
+        type: 'bar',
+        data: { labels: SUBJECTS, datasets: [{ label: '등수 변화 (학기말-중간)', data: rankChanges, backgroundColor: rankChanges.map(value => value < 0 ? 'rgba(27, 94, 32, 0.75)' : value > 0 ? 'rgba(183, 28, 28, 0.75)' : 'rgba(85, 85, 85, 0.55)') }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
       });
       document.getElementById('chartsSection').style.display = 'grid';
     }
 
-    function renderTable(student) {
+    function renderTable(student, rankings) {
       const rows = SUBJECTS.map((subject, index) => {
-        const midterm = student.midterm?.[index];
-        const finalScore = student.final?.[index];
-        const diff = Number.isFinite(midterm) && Number.isFinite(finalScore) ? finalScore - midterm : null;
-        return `<tr><td>${subject}</td><td>${formatScore(midterm)}</td><td>${formatScore(finalScore)}</td><td class="${diffClass(diff)}">${formatDiff(diff)}</td></tr>`;
+        const midRank = rankings.midterm?.[index]?.rank;
+        const finalRank = rankings.final?.[index]?.rank;
+        const midGrade = rankings.midterm?.[index]?.grade;
+        const finalGrade = rankings.final?.[index]?.grade;
+        const rankDiff = Number.isFinite(midRank) && Number.isFinite(finalRank) ? finalRank - midRank : null;
+        const gradeDiff = Number.isFinite(midGrade) && Number.isFinite(finalGrade) ? finalGrade - midGrade : null;
+        return `<tr>
+          <td>${subject}</td>
+          <td>${formatRank(midRank)}</td>
+          <td>${formatGrade(midGrade)}</td>
+          <td>${formatRank(finalRank)}</td>
+          <td>${formatGrade(finalGrade)}</td>
+          <td class="${rankDiffClass(rankDiff)}">${formatRankDiff(rankDiff)}</td>
+          <td class="${rankDiffClass(gradeDiff)}">${Number.isFinite(gradeDiff) ? formatRankDiff(gradeDiff).replace(/등/g, '등급') : '-'}</td>
+        </tr>`;
       }).join('');
       document.getElementById('scoresTables').innerHTML = `
         <table class="comparison-table">
-          <thead><tr><th>과목</th><th>중간고사</th><th>학기말</th><th>변화(학기말-중간)</th></tr></thead>
+          <thead><tr><th>과목</th><th>중간고사 등수</th><th>중간고사 등급</th><th>학기말 등수</th><th>학기말 등급</th><th>등수 변화</th><th>등급 변화</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>`;
       document.getElementById('dataTable').style.display = 'block';
