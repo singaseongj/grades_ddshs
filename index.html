@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>📊 학생별 성적 추이 분석 시스템 for DDSHS v1.10</title>
+  <title>📊 학생별 성적 추이 분석 시스템 for DDSHS v1.2</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- SheetJS (XLSX) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -16,7 +16,7 @@
         <span aria-hidden="true">🏠</span>
         <span class="visually-hidden">홈으로 이동</span>
       </a>
-      <h1>📊 학생별 성적 추이 분석 시스템 for DDSHS v1.10</h1>
+      <h1>📊 학생별 성적 추이 분석 시스템 for DDSHS v1.2</h1>
     </header>
 
     <div class="search-section">
@@ -96,7 +96,7 @@
   <script>
     const TERM_SUBJECTS = {
       semester1: ['공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','정보과학','공통국어1','공통영어1','통합사회1'],
-      semester2: ['대수','미적분','융합탐구','역학과 에너지','화학','생명과학','지구과학','공통국어2','공통영어2','통합사회2']
+      semester2: ['대수','미적분','역학과 에너지','화학','생명과학','지구과학','공통국어2','공통영어2','통합사회2']
     };
     const SUBJECT_DISPLAY_NAMES = {
       '공통국어1': '공통국어 (1학기)',
@@ -160,7 +160,7 @@
     }, {});
     const OVERALL_CHART_SUBJECTS = {
       semester1: ['공통수학1','공통수학2','통합과학1','통합과학2','융합탐구','정보과학','공통국어1','공통영어1','통합사회1'],
-      semester2: ['대수','미적분','융합탐구','역학과 에너지','화학','생명과학','지구과학','공통국어2','공통영어2','통합사회2']
+      semester2: ['대수','미적분','역학과 에너지','화학','생명과학','지구과학','공통국어2','공통영어2','통합사회2']
     };
     const OVERALL_CHART_SUBJECT_LIST = Array.from(new Set([
       ...OVERALL_CHART_SUBJECTS.semester1,
@@ -193,7 +193,10 @@
         EXAM_STEPS.forEach(({ key }) => {
           const termScores = info?.[key];
           if (!Array.isArray(termScores)) return;
+          const termSubjectSet = new Set(TERM_SUBJECTS[key] || []);
           termScores.forEach((value, index) => {
+            const subjectName = SUBJECTS[index];
+            if (!termSubjectSet.has(subjectName)) return;
             if (Number.isFinite(value)) {
               availability[key][index] = true;
             }
@@ -544,7 +547,7 @@
       const sampleStudent = ['홍길동','101'];
       const sampleScoresByTerm = {
         semester1: [95, 94, 93, 92, 91, 96, 95, 94, 94],
-        semester2: [94, 95, 93, 92, 91, 90, 89, 88, 87, 96, 95, 94]
+        semester2: [94, 95, 93, 92, 91, 90, 89, 88, 87]
       };
       EXAM_STEPS.forEach(({ key }) => {
         const subjects = TERM_SUBJECTS[key] || [];
@@ -844,6 +847,65 @@
       dataTable.style.display = hasRows ? 'block' : 'none';
     }
 
+    const alwaysVisibleDetailPlugin = {
+      id: 'alwaysVisibleDetails',
+      afterDatasetsDraw(chart, _args, pluginOptions) {
+        const formatter = pluginOptions?.formatter;
+        if (typeof formatter !== 'function') return;
+
+        const { ctx, chartArea } = chart;
+        if (!chartArea) return;
+
+        ctx.save();
+        ctx.font = '12px sans-serif';
+        ctx.textBaseline = 'middle';
+
+        chart.data.datasets.forEach((dataset, datasetIndex) => {
+          const meta = chart.getDatasetMeta(datasetIndex);
+          if (meta.hidden) return;
+
+          meta.data.forEach((element, dataIndex) => {
+            const value = dataset.data?.[dataIndex];
+            if (!Number.isFinite(value)) return;
+
+            const text = formatter({ chart, datasetIndex, dataIndex, parsed: { y: value } });
+            if (!text) return;
+
+            const lines = Array.isArray(text) ? text : [text];
+            const paddingX = 6;
+            const paddingY = 4;
+            const lineHeight = 16;
+            const width = Math.max(...lines.map(line => ctx.measureText(String(line)).width)) + paddingX * 2;
+            const height = lines.length * lineHeight + paddingY * 2;
+            const position = element.tooltipPosition();
+            let x = position.x - width / 2;
+            let y = position.y - height - 10;
+
+            x = Math.max(chartArea.left, Math.min(x, chartArea.right - width));
+            if (y < chartArea.top) y = position.y + 10;
+            if (y + height > chartArea.bottom) y = Math.max(chartArea.top, chartArea.bottom - height);
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(x, y, width, height, 6);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#fff';
+            lines.forEach((line, lineIndex) => {
+              ctx.fillText(String(line), x + paddingX, y + paddingY + lineHeight / 2 + lineIndex * lineHeight);
+            });
+          });
+        });
+
+        ctx.restore();
+      }
+    };
+
+    Chart.register(alwaysVisibleDetailPlugin);
+
     function createCharts(name, student) {
       let visibleCount = 0;
       CHART_GROUPS.forEach((group, groupIndex) => {
@@ -935,6 +997,14 @@
                       const scoreText = formatScoreValue(score);
                       return `${scoreText}점 / ${rankText}`;
                     }
+                  }
+                },
+                alwaysVisibleDetails: {
+                  formatter: (context) => {
+                    const score = context.parsed.y;
+                    const rankText = rankTexts[context.dataIndex] ?? '-';
+                    const scoreText = formatScoreValue(score);
+                    return `${scoreText}점 / ${rankText}`;
                   }
                 }
               },
@@ -1039,6 +1109,22 @@
                     }
                     return `${grade.toFixed(2)}등급 / ${rankText}`;
                   }
+                }
+              },
+              alwaysVisibleDetails: {
+                formatter: (context) => {
+                  const grade = context.parsed.y;
+                  if (!Number.isFinite(grade)) return '등급 정보 없음';
+                  const examKey = examKeyOrder[context.dataIndex];
+                  const stats = rankingByExam[examKey];
+                  const rankValue = Number.isFinite(stats?.displayRank) ? stats.displayRank : stats?.rank;
+                  const rankText = Number.isFinite(rankValue) ? `${rankValue}등` : '-';
+                  if (group.id === 'overallChart') {
+                    const totalScore = stats?.totalScore;
+                    const totalText = Number.isFinite(totalScore) ? `${totalScore.toFixed(2)}점` : '-';
+                    return `${grade.toFixed(2)}등급 / ${totalText} / ${rankText}`;
+                  }
+                  return `${grade.toFixed(2)}등급 / ${rankText}`;
                 }
               }
             },
