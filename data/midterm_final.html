@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>중간고사 학기말 성적비교 1.0</title>
+  <title>중간고사 학기말 성적비교 1.2</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <link rel="stylesheet" href="../style.css" />
@@ -31,7 +31,7 @@
   <div class="container">
     <a class="back-button" href="../index.html"><span aria-hidden="true">←</span> 학생별 성적 추이로 돌아가기</a>
     <header class="page-header">
-      <h1>중간고사 학기말 성적비교 1.0</h1>
+      <h1>중간고사 학기말 성적비교 1.2</h1>
     </header>
     <p class="comparison-description">중간고사와 학기말 성적을 한 파일로 업로드하여 학생별 과목 등수 변화와 등급 변화를 비교합니다.</p>
 
@@ -427,12 +427,29 @@
       const maxAbsChange = Math.max(1, ...changeValues.map(value => Math.abs(value)));
       const rankChangeBarColors = rankChanges.map(value => {
         if (!Number.isFinite(value) || value === 0) return 'rgba(95, 99, 104, 0.55)';
-        return value < 0 ? 'rgba(244, 67, 54, 0.55)' : 'rgba(26, 115, 232, 0.55)';
+        return value > 0 ? 'rgba(244, 67, 54, 0.55)' : 'rgba(26, 115, 232, 0.55)';
       });
       const rankChangeBorderColors = rankChanges.map(value => {
         if (!Number.isFinite(value) || value === 0) return 'rgba(95, 99, 104, 0.9)';
-        return value < 0 ? 'rgba(244, 67, 54, 0.9)' : 'rgba(26, 115, 232, 0.9)';
+        return value > 0 ? 'rgba(244, 67, 54, 0.9)' : 'rgba(26, 115, 232, 0.9)';
       });
+      const rankChangeDirectionLabels = {
+        id: 'rankChangeDirectionLabels',
+        afterDraw(chart) {
+          const yScale = chart.scales?.y;
+          const { ctx, chartArea } = chart;
+          if (!yScale || !chartArea) return;
+          ctx.save();
+          ctx.fillStyle = '#1a237e';
+          ctx.font = '700 13px sans-serif';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'top';
+          ctx.fillText('상승', yScale.left - 8, chartArea.top + 2);
+          ctx.textBaseline = 'bottom';
+          ctx.fillText('하락', yScale.left - 8, chartArea.bottom - 2);
+          ctx.restore();
+        }
+      };
       charts.subjectChart = new Chart(document.getElementById('subjectChart'), {
         type: 'bar',
         data: { labels: chartLabels, datasets: [
@@ -444,7 +461,7 @@
       charts.averageChart = new Chart(document.getElementById('averageChart'), {
         type: 'bar',
         data: { labels: chartLabels, datasets: [{ label: '등수 변화 (학기말-중간)', data: rankChanges, borderColor: rankChangeBorderColors, backgroundColor: rankChangeBarColors, borderWidth: 1 }] },
-        options: { responsive: true, scales: { y: { min: -maxAbsChange, max: maxAbsChange, reverse: true, ticks: { precision: 0 } } } }
+        options: { responsive: true, layout: { padding: { left: 34 } }, scales: { y: { min: -maxAbsChange, max: maxAbsChange, reverse: true, ticks: { precision: 0 } } } }, plugins: [rankChangeDirectionLabels]
       });
       document.getElementById('chartsSection').style.display = 'grid';
     }
