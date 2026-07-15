@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>학생별 성적 추이 분석 시스템 for DDSHS v2.0</title>
+  <title>학생별 성적 추이 분석 시스템 for DDSHS v2.1</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- SheetJS (XLSX) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -16,7 +16,7 @@
         <span aria-hidden="true">🏠</span>
         <span class="visually-hidden">홈으로 이동</span>
       </a>
-      <h1>학생별 성적 추이 분석 시스템 for DDSHS v2.0</h1>
+      <h1>학생별 성적 추이 분석 시스템 for DDSHS v2.1</h1>
     </header>
 
     <div class="search-section">
@@ -77,11 +77,11 @@
       </div>
       <div class="chart-container">
         <div class="chart-title">과학 성적 추이(등수는 등급 기준입니다.)</div><canvas id="scienceChart"></canvas>
-        <p class="chart-caption">* 통합과학1, 통합과학2, 융합탐구, 역학과 에너지, 화학, 생명과학, 지구과학</p>
+        <p class="chart-caption">* 통합과학1, 통합과학2, 역학과 에너지, 화학, 생명과학, 지구과학</p>
       </div>
       <div class="chart-container">
         <div class="chart-title">수과학 성적 추이(등수는 등급 기준입니다.)</div><canvas id="stemChart"></canvas>
-        <p class="chart-caption">* 공통수학1, 공통수학2, 대수, 미적분, 통합과학1, 통합과학2, 융합탐구, 역학과 에너지, 화학, 생명과학, 지구과학, 정보과학</p>
+        <p class="chart-caption">* 공통수학1, 공통수학2, 대수, 미적분, 통합과학1, 통합과학2, 역학과 에너지, 화학, 생명과학, 지구과학, 정보과학</p>
       </div>
     </div>
 
@@ -174,8 +174,8 @@
       { id: 'englishChart', title: '공통영어 성적 추이', subjects: ['공통영어1','공통영어2'] },
       { id: 'socialChart', title: '통합사회 성적 추이', subjects: ['통합사회1','통합사회2'] },
       { id: 'fusionChart', title: '융합탐구 성적 비교', subjects: ['융합탐구'], mode: 'fusion' },
-      { id: 'scienceChart', title: '과학 (통합과학1, 통합과학2, 융합탐구, 역학과 에너지, 화학, 생명과학, 지구과학, 정보과학) 성적 추이', subjects: ['통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'], useWeightedGrades: true },
-      { id: 'stemChart', title: '수과학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분','통합과학1','통합과학2','융합탐구','역학과 에너지','화학','생명과학','지구과학','정보과학'], useWeightedGrades: true }
+      { id: 'scienceChart', title: '과학 (통합과학1, 통합과학2, 역학과 에너지, 화학, 생명과학, 지구과학, 정보과학) 성적 추이', subjects: ['통합과학1','통합과학2','역학과 에너지','화학','생명과학','지구과학','정보과학'], useWeightedGrades: true },
+      { id: 'stemChart', title: '수과학 성적 추이', subjects: ['공통수학1','공통수학2','대수','미적분','통합과학1','통합과학2','역학과 에너지','화학','생명과학','지구과학','정보과학'], useWeightedGrades: true }
     ];
 
     function createEmptyTermSubjectAvailability() {
