@@ -147,6 +147,7 @@ tr:nth-child(even) { background-color: #f2f2f2; }
 
 .scores-table-wrapper { display: grid; gap: 20px; margin-top: 20px; }
 .scores-table-wrapper table { margin-top: 0; }
+.scores-table-wrapper caption { text-align: left; font-weight: 600; padding-bottom: 8px; }
 .scores-table-wrapper th:first-child { min-width: auto; font-weight: 600; }
 .scores-table-wrapper td:first-child { min-width: auto; font-weight: 400; }
 
