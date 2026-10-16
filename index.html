@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>학생별 성적 추이 분석 시스템 for DDSHS v2.1</title>
+  <title>학생별 성적 추이 분석 시스템 for DDSHS v2.2</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- SheetJS (XLSX) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -16,7 +16,7 @@
         <span aria-hidden="true">🏠</span>
         <span class="visually-hidden">홈으로 이동</span>
       </a>
-      <h1>학생별 성적 추이 분석 시스템 for DDSHS v2.1</h1>
+      <h1>학생별 성적 추이 분석 시스템 for DDSHS v2.2</h1>
     </header>
 
     <div class="search-section">
@@ -1179,41 +1179,46 @@
       if (!wrapper) return false;
       wrapper.innerHTML = '';
       let hasData = false;
-      const chunkSize = 10;
 
       const activeIndices = getActiveSubjectIndices();
       if (!activeIndices.length) {
         return false;
       }
 
-      for (let start = 0; start < activeIndices.length; start += chunkSize) {
-        const chunkIndices = activeIndices.slice(start, start + chunkSize);
+      for (const { key, label } of EXAM_STEPS) {
+        const termIndices = activeIndices.filter(subjectIndex =>
+          isSubjectAvailableForTerm(key, subjectIndex)
+        );
+        if (!termIndices.length) continue;
+
         const table = document.createElement('table');
+        table.createCaption().textContent = label;
         const thead = table.createTHead();
         const headerRow = thead.insertRow();
 
-        chunkIndices.forEach(subjectIndex => {
+        termIndices.forEach(subjectIndex => {
           const subject = SUBJECTS[subjectIndex];
           const th = document.createElement('th');
+          th.scope = 'col';
           th.textContent = SUBJECT_DISPLAY_NAMES[subject] || subject;
           headerRow.appendChild(th);
         });
 
         const tbody = table.createTBody();
         const row = tbody.insertRow();
-        let chunkHasData = false;
+        let termHasData = false;
 
-        chunkIndices.forEach(subjectIndex => {
+        termIndices.forEach(subjectIndex => {
           const cell = row.insertCell();
           const detail = getSubjectDetail(name, student, subjectIndex);
           if (detail.hasData) {
-            chunkHasData = true;
+            termHasData = true;
             hasData = true;
           }
           cell.textContent = detail.text;
         });
 
-        if (chunkHasData) {
+        if (termHasData) {
           wrapper.appendChild(table);
         }
       }
