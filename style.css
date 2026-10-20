@@ -187,3 +187,17 @@ tr:nth-child(even) { background-color: #f2f2f2; }
   .search-box { flex-direction: column; align-items: stretch; }
   .input-row { grid-template-columns: repeat(3, 1fr); }
 }
+
+@page { size: A4; }
+
+@media print {
+  /* Keep each title, graph and caption together on the printed page. */
+  .chart-container {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .chart-title {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+}
